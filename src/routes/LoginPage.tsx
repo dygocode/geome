@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import { supabase } from '../lib/supabase';
 import './LoginPage.css';
 
+const PROD_URL = 'https://geome-app.vercel.app';
+
 export function LoginPage() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -16,9 +16,13 @@ export function LoginPage() {
     setLoading(true);
     setError('');
 
+    const redirectUrl = window.location.hostname === 'localhost'
+      ? `${window.location.origin}/form`
+      : `${PROD_URL}/form`;
+
     const { error: authError } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: redirectUrl },
     });
 
     if (authError) {
@@ -27,14 +31,9 @@ export function LoginPage() {
       return;
     }
 
+    sessionStorage.setItem('analysisEmail', email);
     setSent(true);
     setLoading(false);
-  }
-
-  async function handleSkip() {
-    const fakeEmail = `guest-${Date.now()}@geome.app`;
-    sessionStorage.setItem('analysisEmail', fakeEmail);
-    navigate({ to: '/form', search: { email: fakeEmail } });
   }
 
   if (sent) {
@@ -74,14 +73,6 @@ export function LoginPage() {
           </button>
           {error && <p className="error-text">{error}</p>}
         </form>
-
-        <div className="login-divider">
-          <span>ou</span>
-        </div>
-
-        <button className="btn-skip" onClick={handleSkip}>
-          Continuar sem login
-        </button>
       </div>
     </div>
   );
