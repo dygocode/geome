@@ -85,14 +85,14 @@ async function interFetch(url: string, options: RequestInit = {}): Promise<Respo
 async function getInterToken(): Promise<string> {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
   const creds = btoa(`${INTER_CLIENT_ID}:${INTER_CLIENT_SECRET}`);
+  const body = "grant_type=client_credentials";
   const res = await interFetch(`${INTER_API}/oauth/v2/token`, {
     method: "POST",
     headers: {
       Authorization: `Basic ${creds}`,
       "Content-Type": "application/x-www-form-urlencoded",
-      "Content-Length": "46",
     },
-    body: "grant_type=client_credentials&scope=cob.write%20cob.read",
+    body,
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`Inter auth ${res.status}: ${text}`);
@@ -179,30 +179,43 @@ async function handlePixCreate(body: Record<string, unknown>) {
 
   const token = await getInterToken();
 
-  const cobRes = await interFetch(`${INTER_API}/pix/v2/cob`, {
+  // Cobrança BolePix (not Pix Cobrança)
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 1);
+  const dateStr = dueDate.toISOString().split("T")[0];
+
+  const cobRes = await interFetch(`${INTER_API}/cob/v2/cobrancas`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      calendario: { expiracao: 3600 },
-      valor: { original: (Number(amount_cents) / 100).toFixed(2) },
+      calendario: {
+        dataDeVencimento: dateStr,
+        validadeAposVencimento: 1,
+      },
+      valor: {
+        original: (Number(amount_cents) / 100).toFixed(2),
+      },
       chave: INTER_PIX_KEY,
       solicitacaoPagador: `Geome - Plano Basico - ${email}`,
-      loc: { tipo: "cob" },
+      infoAdicionais: [
+        { nome: "produto", valor: "Geome" },
+        { nome: "plano", valor: "Basico" },
+      ],
     }),
   });
 
   if (!cobRes.ok) {
     const err = await cobRes.text();
-    throw new Error(`Inter PIX: ${cobRes.status} ${err}`);
+    throw new Error(`Inter BolePix: ${cobRes.status} ${err}`);
   }
 
   const cobData = await cobRes.json();
 
   const qrRes = await interFetch(
-    `${INTER_API}/pix/v2/loc/${cobData.loc.id}/qrcode`,
+    `${INTER_API}/cob/v2/loc/${cobData.loc.id}/qrcode`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const qrData = await qrRes.json();
@@ -248,7 +261,7 @@ async function handlePixCheck(body: Record<string, unknown>) {
 
   const token = await getInterToken();
   const cobRes = await interFetch(
-    `${INTER_API}/pix/v2/cob/${payment.external_id}`,
+    `${INTER_API}/cob/v2/cobrancas/${payment.external_id}`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
 
