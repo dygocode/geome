@@ -2,8 +2,8 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ── Config ────────────────────────────────────────────────────
-const ABACATEPAY_API = "https://api.abacatepay.com/v2";
-const ABACATEPAY_TOKEN = Deno.env.get("ABACATEPAY_TOKEN")!;
+const MP_API = "https://api.mercadopago.com";
+const MP_ACCESS_TOKEN = Deno.env.get("MP_ACCESS_TOKEN")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const FRONTEND_URL = Deno.env.get("FRONTEND_URL") || "https://geome-app.vercel.app";
@@ -25,22 +25,22 @@ function sb() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 }
 
-// ── AbacatePay API helper ─────────────────────────────────────
-async function abacatepay(path: string, options: RequestInit = {}): Promise<any> {
-  const res = await fetch(`${ABACATEPAY_API}${path}`, {
+// ── Mercado Pago API helper ───────────────────────────────────
+async function mpFetch(path: string, options: RequestInit = {}): Promise<any> {
+  const res = await fetch(`${MP_API}${path}`, {
     ...options,
     headers: {
-      Authorization: `Bearer ${ABACATEPAY_TOKEN}`,
+      Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
       "Content-Type": "application/json",
       ...options.headers,
     },
   });
   const data = await res.json();
-  if (!data.success) throw new Error(data.error || "AbacatePay error");
-  return data.data;
+  if (!res.ok) throw new Error(`MP ${res.status}: ${JSON.stringify(data)}`);
+  return data;
 }
 
-// ── Route: Create checkout (PIX payment) ──────────────────────
+// ── Route: Create checkout (PIX via Orders API) ───────────────
 async function handlePixCreate(body: Record<string, unknown>) {
   const { subscription_id, email } = body;
   const db = sb();
@@ -51,31 +51,48 @@ async function handlePixCreate(body: Record<string, unknown>) {
   const { data: plan } = await db
     .from("subscription_plans").select("price_cents").eq("id", sub.plan_id).single();
 
-  // Create AbacatePay checkout
-  const checkout = await abacatepay("/checkouts/create", {
+  const amount = (Number(plan.price_cents) / 100).toFixed(2);
+
+  // Create Mercado Pago order with PIX payment
+  const order = await mpFetch("/v1/transactions", {
     method: "POST",
     body: JSON.stringify({
-      items: [{ id: "geome-plano-basico", quantity: 1 }],
-      methods: ["PIX"],
-      externalId: subscription_id,
-      returnUrl: `${FRONTEND_URL}/subscribe?email=${encodeURIComponent(email)}`,
-      completionUrl: `${FRONTEND_URL}/subscribe?email=${encodeURIComponent(email)}&paid=true`,
+      external_reference: subscription_id,
+      transactions: [
+        {
+          amount: { value: Number(amount), currency: "BRL" },
+          payment_method: { type: "pix" },
+          description: "Geome - Plano Basico",
+        },
+      ],
+      items: [
+        {
+          id: "geome-plano-basico",
+          title: "Geome - Plano Basico",
+          description: "5 analises de presenca de marca em LLMs",
+          quantity: 1,
+          unit_price: Number(amount),
+        },
+      ],
     }),
   });
+
+  const transactionId = order.id;
+  const pixData = order.point_of_interaction?.transaction_data;
 
   // Save payment record
   const { data: payment, error: dbErr } = await db
     .from("payments")
     .insert({
       subscription_id,
-      external_id: checkout.id,
+      external_id: String(transactionId),
       amount_cents: plan.price_cents,
       currency: "BRL",
       status: "pending",
-      pix_copy_paste: checkout.url,
-      pix_qr_code: checkout.url,
-      bank_code: "abacatepay",
-      agency: "checkout",
+      pix_copy_paste: pixData?.qr_code_base64 || "",
+      pix_qr_code: pixData?.qr_code_base64 || "",
+      bank_code: "mercadopago",
+      agency: "pix",
     })
     .select()
     .single();
@@ -84,9 +101,10 @@ async function handlePixCreate(body: Record<string, unknown>) {
 
   return json({
     payment_id: payment.id,
-    checkout_url: checkout.url,
-    checkout_id: checkout.id,
-    txid: checkout.id,
+    transaction_id: transactionId,
+    qr_code_base64: pixData?.qr_code_base64 || "",
+    pix_copy_paste: pixData?.qr_code || "",
+    ticket_url: pixData?.ticket_url || "",
   });
 }
 
@@ -101,10 +119,9 @@ async function handlePixCheck(body: Record<string, unknown>) {
   if (!payment) return json({ paid: false });
   if (payment.status === "approved") return json({ paid: true });
 
-  // Check AbacatePay checkout status
   try {
-    const checkout = await abacatepay(`/checkouts/get?id=${payment.external_id}`);
-    const paid = checkout.status === "PAID";
+    const tx = await mpFetch(`/v1/transactions/${payment.external_id}`);
+    const paid = tx.status === "approved";
 
     if (paid) {
       await db.from("payments")
