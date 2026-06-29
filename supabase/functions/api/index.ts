@@ -84,12 +84,13 @@ async function interFetch(url: string, options: RequestInit = {}): Promise<Respo
 
 async function getInterToken(): Promise<string> {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
+  const body = `client_id=${INTER_CLIENT_ID}&client_secret=${INTER_CLIENT_SECRET}&grant_type=client_credentials`;
   const res = await interFetch(`${INTER_API}/oauth/v2/token`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: "grant_type=client_credentials",
+    body,
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`Inter auth ${res.status}: ${text}`);
