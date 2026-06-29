@@ -40,7 +40,7 @@ async function mpFetch(path: string, options: RequestInit = {}): Promise<any> {
   return data;
 }
 
-// ── Route: Create checkout (PIX via Orders API) ───────────────
+// ── Route: Create checkout (PIX via Mercado Pago) ─────────────
 async function handlePixCreate(body: Record<string, unknown>) {
   const { subscription_id, email } = body;
   const db = sb();
@@ -51,45 +51,32 @@ async function handlePixCreate(body: Record<string, unknown>) {
   const { data: plan } = await db
     .from("subscription_plans").select("price_cents").eq("id", sub.plan_id).single();
 
-  const amount = (Number(plan.price_cents) / 100).toFixed(2);
+  const amount = Number(plan.price_cents);
 
-  // Create Mercado Pago order with PIX payment
-  const order = await mpFetch("/v1/transactions", {
+  // Create Mercado Pago payment with PIX
+  const payment = await mpFetch("/v1/payments", {
     method: "POST",
     body: JSON.stringify({
+      transaction_amount: amount,
+      description: "Geome - Plano Basico",
+      payment_method_id: "pix",
+      payer: { email },
       external_reference: subscription_id,
-      transactions: [
-        {
-          amount: { value: Number(amount), currency: "BRL" },
-          payment_method: { type: "pix" },
-          description: "Geome - Plano Basico",
-        },
-      ],
-      items: [
-        {
-          id: "geome-plano-basico",
-          title: "Geome - Plano Basico",
-          description: "5 analises de presenca de marca em LLMs",
-          quantity: 1,
-          unit_price: Number(amount),
-        },
-      ],
     }),
   });
 
-  const transactionId = order.id;
-  const pixData = order.point_of_interaction?.transaction_data;
+  const pixData = payment.point_of_interaction?.transaction_data;
 
   // Save payment record
-  const { data: payment, error: dbErr } = await db
+  const { data: dbPayment, error: dbErr } = await db
     .from("payments")
     .insert({
       subscription_id,
-      external_id: String(transactionId),
+      external_id: String(payment.id),
       amount_cents: plan.price_cents,
       currency: "BRL",
       status: "pending",
-      pix_copy_paste: pixData?.qr_code_base64 || "",
+      pix_copy_paste: pixData?.qr_code || "",
       pix_qr_code: pixData?.qr_code_base64 || "",
       bank_code: "mercadopago",
       agency: "pix",
@@ -100,8 +87,8 @@ async function handlePixCreate(body: Record<string, unknown>) {
   if (dbErr) throw dbErr;
 
   return json({
-    payment_id: payment.id,
-    transaction_id: transactionId,
+    payment_id: dbPayment.id,
+    transaction_id: payment.id,
     qr_code_base64: pixData?.qr_code_base64 || "",
     pix_copy_paste: pixData?.qr_code || "",
     ticket_url: pixData?.ticket_url || "",
@@ -120,7 +107,7 @@ async function handlePixCheck(body: Record<string, unknown>) {
   if (payment.status === "approved") return json({ paid: true });
 
   try {
-    const tx = await mpFetch(`/v1/transactions/${payment.external_id}`);
+    const tx = await mpFetch(`/v1/payments/${payment.external_id}`);
     const paid = tx.status === "approved";
 
     if (paid) {
