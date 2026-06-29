@@ -133,29 +133,35 @@ async function handlePixCheck(body: Record<string, unknown>) {
 
 // ── Route: Login with email + password ────────────────────────
 async function handleLogin(body: Record<string, unknown>) {
-  const { email, password } = body;
+  const { email, password, check_only } = body;
   const db = sb();
 
-  if (!email || !password) return json({ error: "Email e senha obrigatorios" }, 400);
-
-  // Hash password for comparison
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const passwordHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  if (!email) return json({ error: "Email obrigatorio" }, 400);
 
   // Check if user exists
   const { data: existing } = await db
     .from("subscriptions").select("*").eq("email", email)
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
 
+  // Check-only mode: just return if user exists
+  if (check_only) {
+    return json({ isNew: !existing });
+  }
+
+  if (!password) return json({ error: "Senha obrigatoria" }, 400);
+
+  // Hash password for comparison
+  const encoder = new TextEncoder();
+  const data = encoder.encode(String(password));
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const passwordHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+
   if (existing) {
     // User exists — verify password
     if (existing.password_hash !== passwordHash) {
       return json({ error: "Senha incorreta" }, 401);
     }
-    // Return subscription (even if expired — frontend handles redirect to pay)
     const { data: payment } = await db
       .from("payments").select("*").eq("subscription_id", existing.id)
       .eq("status", "pending").limit(1).maybeSingle();

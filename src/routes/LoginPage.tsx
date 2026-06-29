@@ -28,25 +28,15 @@ export function LoginPage() {
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke('api', {
-        body: { route: 'login', email, password: '__check__' },
+        body: { route: 'login', email, check_only: true },
       });
 
       if (fnError) throw new Error(fnError.message);
 
-      if (data.isNew) {
-        setIsNewUser(true);
-      } else {
-        setIsNewUser(false);
-      }
+      setIsNewUser(data.isNew);
       setStep('password');
     } catch (err: any) {
-      // If error is about wrong password, user exists
-      if (err.message?.includes('Senha incorreta')) {
-        setIsNewUser(false);
-        setStep('password');
-      } else {
-        setError(err.message || 'Erro ao verificar email');
-      }
+      setError(err.message || 'Erro ao verificar email');
     } finally {
       setLoading(false);
     }
