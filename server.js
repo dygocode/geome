@@ -263,6 +263,59 @@ app.post('/api/pix/check', async (req, res) => {
   }
 });
 
+// Run analysis (returns mock result for now)
+app.post('/api/analysis', async (req, res) => {
+  try {
+    const { companyName, website, segment, location } = req.body;
+
+    const { data: company } = await supabase
+      .from('companies')
+      .insert({
+        company_name: companyName,
+        website,
+        segment,
+        location,
+        contact_name: req.body.contactName || '',
+        email: req.body.email || '',
+      })
+      .select()
+      .single();
+
+    const result = {
+      overallScore: Math.floor(Math.random() * 40) + 50,
+      brandMentions: [
+        { platform: 'ChatGPT', score: Math.floor(Math.random() * 30) + 60, context: `Sua empresa e mencionada no contexto de ${segment || 'tecnologia'}.`, examples: [`Mencionada em consultas sobre ${segment || 'empresas de TI'}`] },
+        { platform: 'Claude', score: Math.floor(Math.random() * 30) + 50, context: 'Presenca media com foco em conteudo tecnico.', examples: ['Citada em discussoes sobre arquitetura de software'] },
+        { platform: 'Gemini', score: Math.floor(Math.random() * 30) + 55, context: 'Boa visibilidade em respostas sobre empresas brasileiras.', examples: ['Presente em listas de fornecedores'] },
+        { platform: 'Perplexity', score: Math.floor(Math.random() * 30) + 45, context: 'Presenca moderada em pesquisas sobre o setor.', examples: ['Aparece em fontes citadas'] },
+      ],
+      summary: `Analise de presenca da marca ${companyName || 'sua empresa'} nas principais plataformas de IA.`,
+      recommendations: [
+        'Aumente a publicacao de conteudo tecnico no site',
+        'Participe de discussoes sobre inovacao no setor',
+        'Garanta informacoes atualizadas em fontes publicas',
+      ],
+    };
+
+    if (company) {
+      const { data: analysis } = await supabase
+        .from('analyses')
+        .insert({ company_id: company.id, overall_score: result.overallScore, summary: result.summary, recommendations: result.recommendations })
+        .select()
+        .single();
+
+      if (analysis) {
+        const mentions = result.brandMentions.map((m) => ({ analysis_id: analysis.id, ...m }));
+        await supabase.from('platform_mentions').insert(mentions);
+      }
+    }
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Increment usage
 app.post('/api/subscription/increment', async (req, res) => {
   try {
