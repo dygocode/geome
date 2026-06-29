@@ -1,0 +1,126 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --color-grafite: #2C2C2A;
+  --color-chumbo: #444441;
+  --color-ambar: #EF9F27;
+  --color-mel: #FAC775;
+  --color-areia: #F1EFE8;
+
+  --font-primary: 'Archivo', 'Helvetica', sans-serif;
+  --font-secondary: 'Space Grotesk', 'Helvetica', sans-serif;
+  --font-body: 'Helvetica', sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --shadow-sm: 0 1px 3px rgba(44, 44, 42, 0.08);
+  --shadow-md: 0 4px 12px rgba(44, 44, 42, 0.1);
+  --shadow-lg: 0 8px 30px rgba(44, 44, 42, 0.12);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-areia);
+  color: var(--color-grafite);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-primary);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 2.5rem;
+}
+
+h2 {
+  font-size: 1.75rem;
+}
+
+h3 {
+  font-size: 1.25rem;
+}
+
+label {
+  font-family: var(--font-secondary);
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--color-chumbo);
+}
+
+input, select, textarea {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid #d4d4d4;
+  border-radius: var(--radius-sm);
+  background: white;
+  color: var(--color-grafite);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-ambar);
+  box-shadow: 0 0 0 3px rgba(239, 159, 39, 0.15);
+}
+
+button {
+  font-family: var(--font-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* Subscription Bar */
+.subscription-bar {
+  background: var(--color-grafite);
+  color: rgba(255, 255, 255, 0.8);
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+  font-family: var(--font-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.subscription-bar strong {
+  color: var(--color-ambar);
+}
+
+.subscription-bar--cta {
+  background: linear-gradient(135deg, var(--color-grafite), var(--color-chumbo));
+}
+
+.btn-subscribe {
+  background-color: var(--color-ambar);
+  color: var(--color-grafite);
+  padding: 0.45rem 1rem;
+  font-size: 0.8rem;
+  border-radius: var(--radius-sm);
+}
+
+.btn-subscribe:hover {
+  background-color: #e0901f;
+}

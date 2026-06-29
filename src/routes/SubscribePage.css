@@ -1,0 +1,172 @@
+.subscribe-page {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0;
+}
+
+.subscribe-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 2.5rem;
+  box-shadow: var(--shadow-md);
+  max-width: 440px;
+  width: 100%;
+}
+
+.subscribe-card h2 {
+  text-align: center;
+  color: var(--color-grafite);
+  margin-bottom: 1rem;
+}
+
+.plan-badge {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--color-areia);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.plan-limit {
+  font-family: var(--font-secondary);
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--color-grafite);
+}
+
+.plan-price {
+  font-family: var(--font-primary);
+  font-weight: 700;
+  font-size: 1.5rem;
+  color: var(--color-ambar);
+}
+
+.subscribe-form .form-group {
+  margin-bottom: 1rem;
+}
+
+.subscribe-form label {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.subscribe-form input {
+  width: 100%;
+}
+
+.btn-primary {
+  width: 100%;
+  background-color: var(--color-ambar);
+  color: var(--color-grafite);
+  font-size: 1rem;
+  padding: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #e0901f;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.active-state {
+  text-align: center;
+}
+
+.active-state p {
+  font-size: 1.1rem;
+  color: var(--color-grafite);
+  margin-bottom: 0.5rem;
+}
+
+.remaining {
+  font-family: var(--font-secondary);
+  font-weight: 600;
+  color: var(--color-ambar) !important;
+  font-size: 1.25rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.payment-section {
+  text-align: center;
+}
+
+.payment-section h3 {
+  color: var(--color-grafite);
+  margin-bottom: 0.5rem;
+}
+
+.bank-info {
+  font-size: 0.85rem;
+  color: var(--color-chumbo);
+  margin-bottom: 1.5rem;
+}
+
+.pix-qrcode {
+  display: block;
+  margin: 0 auto 1.5rem;
+  width: 220px;
+  height: 220px;
+  border: 1px solid #e0e0e0;
+  border-radius: var(--radius-md);
+}
+
+.btn-copy {
+  width: 100%;
+  background-color: var(--color-grafite);
+  color: white;
+  font-size: 0.95rem;
+  padding: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.btn-copy:hover {
+  background-color: #1a1a18;
+}
+
+.btn-check {
+  width: 100%;
+  background-color: transparent;
+  color: var(--color-ambar);
+  font-size: 0.95rem;
+  padding: 0.75rem;
+  border: 2px solid var(--color-ambar);
+}
+
+.btn-check:hover:not(:disabled) {
+  background-color: var(--color-areia);
+}
+
+.btn-check:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-text {
+  color: #e53935;
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--color-chumbo);
+  margin-top: 1rem;
+}
+
+.pending-notice {
+  background: linear-gradient(135deg, var(--color-grafite), var(--color-chumbo));
+  color: var(--color-ambar);
+  text-align: center;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 1.5rem;
+  font-family: var(--font-secondary);
+  font-weight: 600;
+  font-size: 0.9rem;
+}

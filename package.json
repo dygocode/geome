@@ -1,0 +1,35 @@
+{
+  "name": "geome",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "server": "node --env-file=.env.server server.js",
+    "start": "node --env-file=.env.server server.js & npx serve dist -l 5173 -s"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
+    "@tanstack/react-router": "^1.170.16",
+    "@tanstack/router-devtools": "^1.167.0",
+    "axios": "^1.18.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "oxlint": "^1.69.0",
+    "supabase": "^2.108.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.0"
+  }
+}

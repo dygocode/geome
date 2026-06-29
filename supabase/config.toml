@@ -1,0 +1,8 @@
+[project]
+id = "cmyvmtzabxxppxqcnvyt"
+
+[functions.inter-create-pix]
+verify_jwt = false
+
+[functions.inter-check-payment]
+verify_jwt = false
