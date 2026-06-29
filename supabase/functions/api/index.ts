@@ -84,7 +84,7 @@ async function getInterToken(): Promise<string> {
       Authorization: `Basic ${creds}`,
       "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: "grant_type=client_credentials",
+    body: "grant_type=client_credentials&scope=cob.write+cob.read",
   });
   if (!res.ok) throw new Error(`Inter auth: ${res.status}`);
   const data = await res.json();
