@@ -12,7 +12,39 @@ export function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [expired, setExpired] = useState(false);
   const [remaining, setRemaining] = useState(0);
+  const [pendingProcessing, setPendingProcessing] = useState(false);
 
+  // Run pending analysis after payment redirect
+  useEffect(() => {
+    const pendingForm = sessionStorage.getItem('pendingAnalysisForm');
+    const email = search.email || sessionStorage.getItem('analysisEmail');
+
+    if (pendingForm && email) {
+      setPendingProcessing(true);
+      sessionStorage.removeItem('pendingAnalysisForm');
+
+      canUseAnalysis(email).then(({ allowed, subscription }) => {
+        if (allowed && subscription) {
+          const data: CompanyFormData = JSON.parse(pendingForm);
+          incrementUsage(subscription.id)
+            .then(() => submitAnalysis(data))
+            .then((result) => {
+              sessionStorage.setItem('analysisResult', JSON.stringify(result));
+              sessionStorage.setItem('analysisForm', JSON.stringify(data));
+              navigate({ to: '/analysis', search: { email } });
+            })
+            .catch((err) => {
+              console.error('Pending analysis failed:', err);
+              setPendingProcessing(false);
+            });
+        } else {
+          setPendingProcessing(false);
+        }
+      });
+    }
+  }, []);
+
+  // Check subscription status
   useEffect(() => {
     const email = search.email || sessionStorage.getItem('analysisEmail');
     if (email) {
@@ -29,15 +61,7 @@ export function HomePage() {
     try {
       const { allowed, subscription, expired: exp } = await canUseAnalysis(email);
 
-      if (exp) {
-        setExpired(true);
-        sessionStorage.setItem('pendingAnalysisForm', JSON.stringify(data));
-        sessionStorage.setItem('analysisEmail', email);
-        navigate({ to: '/subscribe', search: { email } });
-        return;
-      }
-
-      if (!allowed || !subscription) {
+      if (exp || !allowed || !subscription) {
         sessionStorage.setItem('pendingAnalysisForm', JSON.stringify(data));
         sessionStorage.setItem('analysisEmail', email);
         navigate({ to: '/subscribe', search: { email } });
@@ -45,7 +69,7 @@ export function HomePage() {
       }
 
       setIsLoading(true);
-      setRemaining(remaining - 1);
+      setRemaining((r) => r - 1);
       await incrementUsage(subscription.id);
       const result = await submitAnalysis(data);
       sessionStorage.setItem('analysisResult', JSON.stringify(result));
@@ -59,23 +83,7 @@ export function HomePage() {
     }
   }
 
-  // Check for pending analysis after payment
-  const pendingForm = sessionStorage.getItem('pendingAnalysisForm');
-  if (pendingForm && search.email && !isLoading) {
-    canUseAnalysis(search.email).then(({ allowed, subscription }) => {
-      if (allowed && subscription) {
-        setIsLoading(true);
-        const data: CompanyFormData = JSON.parse(pendingForm);
-        sessionStorage.removeItem('pendingAnalysisForm');
-        incrementUsage(subscription.id).then(() =>
-          submitAnalysis(data).then((result) => {
-            sessionStorage.setItem('analysisResult', JSON.stringify(result));
-            sessionStorage.setItem('analysisForm', JSON.stringify(data));
-            navigate({ to: '/analysis', search: { email: search.email } });
-          })
-        );
-      }
-    });
+  if (pendingProcessing) {
     return (
       <div style={{ textAlign: 'center', padding: '4rem 0' }}>
         <p>Processando sua analise...</p>
