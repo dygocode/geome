@@ -14,7 +14,7 @@ export function AnalysisPage() {
           Execute uma analise primeiro para ver os resultados.
         </p>
         <button
-          onClick={() => navigate({ to: '/' })}
+          onClick={() => navigate({ to: '/form', search: { email: sessionStorage.getItem('analysisEmail') || '' } })}
           style={{
             background: 'var(--color-ambar)',
             color: 'var(--color-grafite)',
@@ -36,7 +36,7 @@ export function AnalysisPage() {
       onReset={() => {
         sessionStorage.removeItem('analysisResult');
         sessionStorage.removeItem('analysisForm');
-        navigate({ to: '/' });
+        navigate({ to: '/form', search: { email: sessionStorage.getItem('analysisEmail') || '' } });
       }}
     />
   );

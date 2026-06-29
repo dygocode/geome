@@ -1,0 +1,92 @@
+.login-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+}
+
+.login-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 3rem;
+  box-shadow: var(--shadow-md);
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+}
+
+.login-card h2 {
+  color: var(--color-grafite);
+  margin-bottom: 0.5rem;
+}
+
+.login-subtitle {
+  color: var(--color-chumbo);
+  font-size: 0.95rem;
+  margin-bottom: 2rem;
+}
+
+.login-form .form-group {
+  margin-bottom: 1rem;
+  text-align: left;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.login-form input {
+  width: 100%;
+}
+
+.login-form .btn-primary {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.login-hint {
+  color: var(--color-chumbo);
+  font-size: 0.85rem;
+  margin-top: 1rem;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e0e0e0;
+}
+
+.login-divider span {
+  color: var(--color-chumbo);
+  font-size: 0.85rem;
+}
+
+.btn-skip {
+  width: 100%;
+  background: transparent;
+  color: var(--color-chumbo);
+  font-size: 0.9rem;
+  padding: 0.75rem;
+  border: 1.5px solid #d4d4d4;
+  border-radius: var(--radius-md);
+}
+
+.btn-skip:hover {
+  background: var(--color-areia);
+}
+
+.error-text {
+  color: #e53935;
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+}

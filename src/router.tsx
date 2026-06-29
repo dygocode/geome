@@ -1,6 +1,7 @@
 import { createRouter, createRoute, createRootRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 import { Layout } from './components/Layout';
+import { LoginPage } from './routes/LoginPage';
 import { HomePage } from './routes/HomePage';
 import { AnalysisPage } from './routes/AnalysisPage';
 import { SubscribePage } from './routes/SubscribePage';
@@ -9,9 +10,15 @@ const rootRoute = createRootRoute({
   component: Layout,
 });
 
-const homeRoute = createRoute({
+const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
+  component: LoginPage,
+});
+
+const homeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/form',
   component: HomePage,
   validateSearch: z.object({
     email: z.string().optional(),
@@ -33,10 +40,11 @@ const subscribeRoute = createRoute({
   component: SubscribePage,
   validateSearch: z.object({
     email: z.string().optional(),
+    paid: z.string().optional(),
   }),
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, analysisRoute, subscribeRoute]);
+const routeTree = rootRoute.addChildren([loginRoute, homeRoute, analysisRoute, subscribeRoute]);
 
 export const router = createRouter({ routeTree });
 

@@ -14,21 +14,23 @@ export function SubscribePage() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { email?: string };
 
-  const [email, setEmail] = useState(search.email || '');
+  const email = search.email || sessionStorage.getItem('analysisEmail') || '';
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [payment, setPayment] = useState<Payment | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (search.email) {
-      handleEmailSubmitWith(search.email);
+    if (email) {
+      loadPayment(email);
+    } else {
+      setLoading(false);
     }
   }, []);
 
-  async function handleEmailSubmitWith(emailAddr: string) {
+  async function loadPayment(emailAddr: string) {
     setLoading(true);
     setError('');
     try {
@@ -36,7 +38,7 @@ export function SubscribePage() {
       setSubscription(sub);
 
       if (sub.status === 'active') {
-        navigate({ to: '/', search: { email: emailAddr } });
+        navigate({ to: '/form', search: { email: emailAddr } });
         return;
       }
 
@@ -53,12 +55,6 @@ export function SubscribePage() {
     }
   }
 
-  async function handleEmailSubmit() {
-    if (!email) return;
-    sessionStorage.setItem('analysisEmail', email);
-    await handleEmailSubmitWith(email);
-  }
-
   async function handleCheckPayment() {
     if (!payment) return;
     setChecking(true);
@@ -66,7 +62,13 @@ export function SubscribePage() {
       const { activated, subscription: sub } = await checkAndActivatePayment(payment.id);
       if (activated && sub) {
         setSubscription(sub);
-        navigate({ to: '/', search: { email } });
+        // Re-run pending analysis
+        const pendingForm = sessionStorage.getItem('pendingAnalysisForm');
+        if (pendingForm) {
+          navigate({ to: '/form', search: { email } });
+        } else {
+          navigate({ to: '/form', search: { email } });
+        }
       } else {
         setError('Pagamento ainda nao confirmado. Aguarde alguns instantes.');
       }
@@ -84,46 +86,32 @@ export function SubscribePage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  if (loading) {
+    return (
+      <div className="subscribe-page">
+        <div className="subscribe-card">
+          <h2>Preparando pagamento...</h2>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="subscribe-page">
       <div className="subscribe-card">
-        <h2>Plano Geome</h2>
+        <h2>Desbloquear Analise</h2>
         <div className="plan-badge">
           <span className="plan-limit">{PLAN_CONFIG.analysesLimit} analises</span>
           <span className="plan-price">R$ {(PLAN_CONFIG.priceCents / 100).toFixed(2).replace('.', ',')}</span>
         </div>
 
-        {!subscription ? (
-          <form
-            className="subscribe-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleEmailSubmit();
-            }}
-          >
-            <div className="form-group">
-              <label htmlFor="email">Email corporativo</label>
-              <input
-                id="email"
-                type="email"
-                placeholder="seu@email.com.br"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'Processando...' : 'Gerar PIX'}
-            </button>
-            {error && <p className="error-text">{error}</p>}
-          </form>
-        ) : subscription.status === 'active' ? (
+        {subscription?.status === 'active' ? (
           <div className="active-state">
             <p>Assinatura ativa!</p>
             <p className="remaining">
               {subscription.analyses_limit - subscription.analyses_used} analises restantes
             </p>
-            <button className="btn-primary" onClick={() => navigate({ to: '/', search: { email } })}>
+            <button className="btn-primary" onClick={() => navigate({ to: '/form', search: { email } })}>
               Iniciar Analise
             </button>
           </div>
@@ -158,7 +146,9 @@ export function SubscribePage() {
               O pagamento e confirmado automaticamente em segundos.
             </p>
           </div>
-        ) : null}
+        ) : (
+          <p className="error-text">Nenhum pagamento encontrado.</p>
+        )}
       </div>
     </div>
   );
