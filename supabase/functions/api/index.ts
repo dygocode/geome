@@ -184,7 +184,7 @@ async function handlePixCreate(body: Record<string, unknown>) {
   dueDate.setDate(dueDate.getDate() + 1);
   const dateStr = dueDate.toISOString().split("T")[0];
 
-  const cobRes = await interFetch(`${INTER_API}/cob/v2/cobrancas`, {
+  const cobRes = await interFetch(`${INTER_API}/cobranca/v3/cobrancas`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -215,7 +215,7 @@ async function handlePixCreate(body: Record<string, unknown>) {
   const cobData = await cobRes.json();
 
   const qrRes = await interFetch(
-    `${INTER_API}/cob/v2/loc/${cobData.loc.id}/qrcode`,
+    `${INTER_API}/cobranca/v3/loc/${cobData.loc.id}/qrcode`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const qrData = await qrRes.json();
@@ -261,7 +261,7 @@ async function handlePixCheck(body: Record<string, unknown>) {
 
   const token = await getInterToken();
   const cobRes = await interFetch(
-    `${INTER_API}/cob/v2/cobrancas/${payment.external_id}`,
+    `${INTER_API}/cobranca/v3/cobrancas/${payment.external_id}`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
 
