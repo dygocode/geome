@@ -40,20 +40,26 @@ async function interFetch(url: string, options: RequestInit = {}): Promise<Respo
 
   const encoder = new TextEncoder();
   const body = options.body ? String(options.body) : "";
-  const hdrs = Object.entries(options.headers || {})
-    .map(([k, v]) => `${k}: ${v}`)
-    .join("\r\n");
+  const bodyBytes = encoder.encode(body);
 
-  const req = [
-    `${options.method || "GET"} ${parsedUrl.pathname}${parsedUrl.search} HTTP/1.1`,
-    `Host: ${parsedUrl.hostname}`,
-    hdrs,
-    body ? `Content-Length: ${encoder.encode(body).length}` : "",
-    "Connection: close",
-    "\r\n",
-  ].join("\r\n");
+  const rawHeaders: string[] = [];
+  rawHeaders.push(`${options.method || "GET"} ${parsedUrl.pathname}${parsedUrl.search} HTTP/1.1`);
+  rawHeaders.push(`Host: ${parsedUrl.hostname}`);
 
-  await conn.write(encoder.encode(req + body));
+  for (const [k, v] of Object.entries(options.headers || {})) {
+    if (k.toLowerCase() === "content-length") continue;
+    rawHeaders.push(`${k}: ${v}`);
+  }
+
+  if (bodyBytes.length > 0) {
+    rawHeaders.push(`Content-Length: ${bodyBytes.length}`);
+  }
+  rawHeaders.push("Connection: close");
+  rawHeaders.push("");
+
+  const request = rawHeaders.join("\r\n") + "\r\n";
+  await conn.write(encoder.encode(request));
+  if (bodyBytes.length > 0) await conn.write(bodyBytes);
 
   const decoder = new TextDecoder();
   let data = "";
@@ -64,10 +70,11 @@ async function interFetch(url: string, options: RequestInit = {}): Promise<Respo
   }
   conn.close();
 
-  const idx = data.indexOf("\r\n\r\n");
+  const headerEnd = data.indexOf("\r\n\r\n");
+  if (headerEnd === -1) throw new Error(`No HTTP headers in response: ${data.slice(0, 200)}`);
   const statusLine = data.substring(0, data.indexOf("\r\n"));
   const status = parseInt(statusLine.split(" ")[1]) || 500;
-  const respBody = data.substring(idx + 4);
+  const respBody = data.substring(headerEnd + 4);
 
   return new Response(respBody, {
     status,
@@ -83,11 +90,13 @@ async function getInterToken(): Promise<string> {
     headers: {
       Authorization: `Basic ${creds}`,
       "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Length": "46",
     },
-    body: "grant_type=client_credentials&scope=cob.write+cob.read",
+    body: "grant_type=client_credentials&scope=cob.write%20cob.read",
   });
-  if (!res.ok) throw new Error(`Inter auth: ${res.status}`);
-  const data = await res.json();
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Inter auth ${res.status}: ${text}`);
+  const data = JSON.parse(text);
   cachedToken = data.access_token;
   tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
   return cachedToken;
