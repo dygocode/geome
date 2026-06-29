@@ -63,10 +63,14 @@ export function SubscribePage() {
       if (pay) {
         setPayment(pay);
       } else {
-        const newPayment = await generatePayment(sub.id, emailAddr);
-        setPayment(newPayment);
+        try {
+          const newPayment = await generatePayment(sub.id, emailAddr);
+          setPayment(newPayment);
+        } catch (pixErr: any) {
+          setError(`Erro PIX: ${pixErr.message}`);
+        }
       }
-    } catch (err) {
+    } catch (err: any) {
       setError('Erro ao processar. Tente novamente.');
     } finally {
       setLoading(false);
