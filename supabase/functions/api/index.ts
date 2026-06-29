@@ -34,7 +34,7 @@ async function interFetch(url: string, options: RequestInit = {}): Promise<Respo
   const conn = await Deno.connectTls({
     hostname: parsedUrl.hostname,
     port: 443,
-    certChain: certPem,
+    cert: certPem,
     key: keyPem,
   });
 
