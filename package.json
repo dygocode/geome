@@ -7,15 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview",
-    "server": "node --env-file=.env.server server.js",
-    "start": "node --env-file=.env.server server.js & npx serve dist -l 5173 -s"
+    "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
     "@tanstack/react-router": "^1.170.16",
     "@tanstack/router-devtools": "^1.167.0",
-    "cors": "^2.8.6",
-    "express": "^5.2.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "zod": "^4.4.3"

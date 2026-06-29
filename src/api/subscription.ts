@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+import { supabase } from '../lib/supabase';
 
 export const PLAN_CONFIG = {
   analysesLimit: 5,
@@ -32,35 +32,24 @@ export interface Payment {
   created_at: string;
 }
 
-async function apiPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'API error');
-  }
-  return res.json();
+async function invoke(body: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke('api', { body });
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function getOrCreateSubscription(
   email: string
 ): Promise<{ subscription: Subscription; payment?: Payment }> {
-  return apiPost('/api/subscription', { email });
+  return invoke({ route: 'subscription', email });
 }
 
 export async function generatePayment(
   subscriptionId: string,
   email: string
 ): Promise<Payment> {
-  const data = await apiPost<{
-    payment_id: string;
-    pix_copy_paste: string;
-    pix_qr_code: string;
-    txid: string;
-  }>('/api/pix/create', {
+  const data = await invoke({
+    route: 'pix/create',
     subscription_id: subscriptionId,
     email,
     amount_cents: PLAN_CONFIG.priceCents,
@@ -84,17 +73,13 @@ export async function generatePayment(
 export async function checkAndActivatePayment(
   paymentId: string
 ): Promise<{ activated: boolean; subscription: Subscription | null }> {
-  const data = await apiPost<{ paid: boolean }>('/api/pix/check', {
-    payment_id: paymentId,
-  });
-
+  const data = await invoke({ route: 'pix/check', payment_id: paymentId });
   if (!data.paid) return { activated: false, subscription: null };
 
-  // Payment confirmed — fetch updated subscription
-  const subData = await apiPost<{ subscription: Subscription }>('/api/subscription/check', {
+  const subData = await invoke({
+    route: 'subscription/check',
     email: sessionStorage.getItem('analysisEmail') || '',
   });
-
   return { activated: true, subscription: subData.subscription };
 }
 
@@ -103,9 +88,9 @@ export async function canUseAnalysis(email: string): Promise<{
   remaining: number;
   subscription: Subscription | null;
 }> {
-  return apiPost('/api/subscription/check', { email });
+  return invoke({ route: 'subscription/check', email });
 }
 
 export async function incrementUsage(subscriptionId: string): Promise<void> {
-  await apiPost('/api/subscription/increment', { subscription_id: subscriptionId });
+  await invoke({ route: 'subscription/increment', subscription_id: subscriptionId });
 }
