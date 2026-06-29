@@ -107,8 +107,16 @@ function sb() {
 
 // ── Route: Create PIX charge (Pix Cobrança) ───────────────────
 async function handlePixCreate(body: Record<string, unknown>) {
-  const { subscription_id, email, amount_cents } = body;
+  const { subscription_id, email } = body;
   const db = sb();
+
+  // Get amount from subscription plan
+  const { data: sub } = await db
+    .from("subscriptions").select("plan_id").eq("id", subscription_id).single();
+  const { data: plan } = await db
+    .from("subscription_plans").select("price_cents").eq("id", sub.plan_id).single();
+  const amount_cents = plan.price_cents;
+
   const token = await getInterToken();
 
   const cobRes = await interFetch(`${INTER_API}/pix/v2/cob`, {

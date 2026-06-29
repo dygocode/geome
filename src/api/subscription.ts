@@ -52,7 +52,6 @@ export async function generatePayment(
     route: 'pix/create',
     subscription_id: subscriptionId,
     email,
-    amount_cents: PLAN_CONFIG.priceCents,
   });
 
   return {
