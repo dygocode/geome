@@ -25,10 +25,7 @@ export interface Payment {
   amount_cents: number;
   currency: string;
   status: string;
-  pix_copy_paste: string | null;
-  pix_qr_code: string | null;
-  bank_code: string;
-  agency: string;
+  checkout_url: string | null;
   created_at: string;
 }
 
@@ -54,17 +51,19 @@ export async function generatePayment(
     email,
   });
 
+  // Redirect to AbacatePay checkout
+  if (data.checkout_url) {
+    window.location.href = data.checkout_url;
+  }
+
   return {
     id: data.payment_id,
     subscription_id: subscriptionId,
-    external_id: data.txid,
+    external_id: data.checkout_id,
     amount_cents: PLAN_CONFIG.priceCents,
     currency: PLAN_CONFIG.currency,
     status: 'pending',
-    pix_copy_paste: data.pix_copy_paste,
-    pix_qr_code: data.pix_qr_code,
-    bank_code: '077',
-    agency: '0001-9',
+    checkout_url: data.checkout_url,
     created_at: new Date().toISOString(),
   };
 }

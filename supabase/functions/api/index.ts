@@ -2,20 +2,11 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ── Config ────────────────────────────────────────────────────
-const INTER_API = "https://cdpj.partners.bancointer.com.br";
-const INTER_CLIENT_ID = Deno.env.get("INTER_CLIENT_ID")!;
-const INTER_CLIENT_SECRET = Deno.env.get("INTER_CLIENT_SECRET")!;
-const INTER_PIX_KEY = Deno.env.get("INTER_PIX_KEY")!;
-const INTER_CERT_B64 = Deno.env.get("INTER_CERT")!;
-const INTER_KEY_B64 = Deno.env.get("INTER_KEY")!;
+const ABACATEPAY_API = "https://api.abacatepay.com/v2";
+const ABACATEPAY_TOKEN = Deno.env.get("ABACATEPAY_TOKEN")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-const certPem = atob(INTER_CERT_B64);
-const keyPem = atob(INTER_KEY_B64);
-
-let cachedToken: string | null = null;
-let tokenExpiresAt = 0;
+const FRONTEND_URL = Deno.env.get("FRONTEND_URL") || "https://geome-app.vercel.app";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,82 +21,26 @@ function json(data: unknown, status = 200) {
   });
 }
 
-// ── mTLS fetch via raw TLS (Deno has no native mTLS fetch) ────
-async function interFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const parsedUrl = new URL(url);
-  const conn = await Deno.connectTls({
-    hostname: parsedUrl.hostname,
-    port: 443,
-    cert: certPem,
-    key: keyPem,
-  });
-
-  const encoder = new TextEncoder();
-  const body = options.body ? String(options.body) : "";
-  const bodyBytes = encoder.encode(body);
-
-  const lines: string[] = [];
-  lines.push(`${options.method || "GET"} ${parsedUrl.pathname}${parsedUrl.search} HTTP/1.1`);
-  lines.push(`Host: ${parsedUrl.hostname}`);
-  for (const [k, v] of Object.entries(options.headers || {})) {
-    if (k.toLowerCase() === "content-length") continue;
-    lines.push(`${k}: ${v}`);
-  }
-  if (bodyBytes.length > 0) lines.push(`Content-Length: ${bodyBytes.length}`);
-  lines.push("Connection: close");
-  lines.push("");
-
-  await conn.write(encoder.encode(lines.join("\r\n")));
-  if (bodyBytes.length > 0) await conn.write(bodyBytes);
-
-  const decoder = new TextDecoder();
-  let data = "";
-  const buf = new Uint8Array(8192);
-  let n: number;
-  while ((n = await conn.read(buf)) !== null) data += decoder.decode(buf.subarray(0, n));
-  conn.close();
-
-  const headerEnd = data.indexOf("\r\n\r\n");
-  if (headerEnd === -1) throw new Error(`No headers: ${data.slice(0, 200)}`);
-  const statusLine = data.substring(0, data.indexOf("\r\n"));
-  const status = parseInt(statusLine.split(" ")[1]) || 500;
-  const respBody = data.substring(headerEnd + 4);
-
-  return new Response(respBody, { status, headers: { "Content-Type": "application/json" } });
-}
-
-// ── Inter OAuth2 (client_id + client_secret in body + mTLS cert) ──
-async function getInterToken(): Promise<string> {
-  if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
-
-  const body = [
-    `client_id=${INTER_CLIENT_ID}`,
-    `client_secret=${INTER_CLIENT_SECRET}`,
-    "grant_type=client_credentials",
-    "scope=cob.write cob.read pix.read",
-  ].join("&");
-
-  const res = await interFetch(`${INTER_API}/oauth/v2/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
-
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Inter auth ${res.status}: ${text}`);
-
-  const data = JSON.parse(text);
-  cachedToken = data.access_token;
-  tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
-  return cachedToken;
-}
-
-// ── Supabase helper ───────────────────────────────────────────
 function sb() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 }
 
-// ── Route: Create PIX charge (Pix Cobrança) ───────────────────
+// ── AbacatePay API helper ─────────────────────────────────────
+async function abacatepay(path: string, options: RequestInit = {}): Promise<any> {
+  const res = await fetch(`${ABACATEPAY_API}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${ABACATEPAY_TOKEN}`,
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || "AbacatePay error");
+  return data.data;
+}
+
+// ── Route: Create checkout (PIX payment) ──────────────────────
 async function handlePixCreate(body: Record<string, unknown>) {
   const { subscription_id, email } = body;
   const db = sb();
@@ -115,43 +50,32 @@ async function handlePixCreate(body: Record<string, unknown>) {
     .from("subscriptions").select("plan_id").eq("id", subscription_id).single();
   const { data: plan } = await db
     .from("subscription_plans").select("price_cents").eq("id", sub.plan_id).single();
-  const amount_cents = plan.price_cents;
 
-  const token = await getInterToken();
-
-  const cobRes = await interFetch(`${INTER_API}/pix/v2/cob`, {
+  // Create AbacatePay checkout
+  const checkout = await abacatepay("/checkouts/create", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({
-      calendario: { expiracao: 3600 },
-      valor: { original: (Number(amount_cents) / 100).toFixed(2) },
-      chave: INTER_PIX_KEY,
-      solicitacaoPagador: `Geome - Plano Basico - ${email}`,
+      items: [{ id: "geome-plano-basico", quantity: 1 }],
+      methods: ["PIX"],
+      externalId: subscription_id,
+      returnUrl: `${FRONTEND_URL}/subscribe?email=${encodeURIComponent(email)}`,
+      completionUrl: `${FRONTEND_URL}/subscribe?email=${encodeURIComponent(email)}&paid=true`,
     }),
   });
 
-  if (!cobRes.ok) {
-    const err = await cobRes.text();
-    throw new Error(`Inter PIX: ${cobRes.status} ${err}`);
-  }
-
-  const cobData = await cobRes.json();
-
+  // Save payment record
   const { data: payment, error: dbErr } = await db
     .from("payments")
     .insert({
       subscription_id,
-      external_id: cobData.txid,
-      amount_cents,
+      external_id: checkout.id,
+      amount_cents: plan.price_cents,
       currency: "BRL",
       status: "pending",
-      pix_copy_paste: cobData.pixCopiaECola,
-      pix_qr_code: cobData.pixCopiaECola,
-      bank_code: "077",
-      agency: "0001-9",
+      pix_copy_paste: checkout.url,
+      pix_qr_code: checkout.url,
+      bank_code: "abacatepay",
+      agency: "checkout",
     })
     .select()
     .single();
@@ -160,13 +84,13 @@ async function handlePixCreate(body: Record<string, unknown>) {
 
   return json({
     payment_id: payment.id,
-    pix_copy_paste: cobData.pixCopiaECola,
-    pix_qr_code: cobData.pixCopiaECola,
-    txid: cobData.txid,
+    checkout_url: checkout.url,
+    checkout_id: checkout.id,
+    txid: checkout.id,
   });
 }
 
-// ── Route: Check PIX payment status ───────────────────────────
+// ── Route: Check payment status ───────────────────────────────
 async function handlePixCheck(body: Record<string, unknown>) {
   const { payment_id } = body;
   const db = sb();
@@ -177,32 +101,28 @@ async function handlePixCheck(body: Record<string, unknown>) {
   if (!payment) return json({ paid: false });
   if (payment.status === "approved") return json({ paid: true });
 
-  const token = await getInterToken();
+  // Check AbacatePay checkout status
+  try {
+    const checkout = await abacatepay(`/checkouts/get?id=${payment.external_id}`);
+    const paid = checkout.status === "PAID";
 
-  const cobRes = await interFetch(
-    `${INTER_API}/pix/v2/cob/${payment.external_id}`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
+    if (paid) {
+      await db.from("payments")
+        .update({ status: "approved", paid_at: new Date().toISOString() })
+        .eq("id", payment_id);
 
-  if (!cobRes.ok) return json({ paid: false });
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
 
-  const cobData = await cobRes.json();
-  const paid = cobData.status === "CONCLUIDA";
+      await db.from("subscriptions")
+        .update({ status: "active", expires_at: expiresAt.toISOString() })
+        .eq("id", payment.subscription_id);
+    }
 
-  if (paid) {
-    await db.from("payments")
-      .update({ status: "approved", paid_at: new Date().toISOString() })
-      .eq("id", payment_id);
-
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30);
-
-    await db.from("subscriptions")
-      .update({ status: "active", expires_at: expiresAt.toISOString() })
-      .eq("id", payment.subscription_id);
+    return json({ paid });
+  } catch {
+    return json({ paid: false });
   }
-
-  return json({ paid });
 }
 
 // ── Route: Get or create subscription ─────────────────────────
