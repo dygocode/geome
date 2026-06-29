@@ -1,51 +1,24 @@
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { useNavigate } from '@tanstack/react-router';
 import './LoginPage.css';
 
-const PROD_URL = 'https://geome-app.vercel.app';
-
 export function LoginPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
 
-  async function handleLogin(e: React.FormEvent) {
+  function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!email) return;
-    setLoading(true);
-    setError('');
 
-    const redirectUrl = window.location.hostname === 'localhost'
-      ? `${window.location.origin}/form`
-      : `${PROD_URL}/form`;
-
-    const { error: authError } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: redirectUrl },
-    });
-
-    if (authError) {
-      setError(authError.message);
-      setLoading(false);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Email invalido');
       return;
     }
 
     sessionStorage.setItem('analysisEmail', email);
-    setSent(true);
-    setLoading(false);
-  }
-
-  if (sent) {
-    return (
-      <div className="login-page">
-        <div className="login-card">
-          <h2>Verifique seu email</h2>
-          <p>Enviamos um link de acesso para <strong>{email}</strong></p>
-          <p className="login-hint">Clique no link para acessar o Geome.</p>
-        </div>
-      </div>
-    );
+    navigate({ to: '/form', search: { email } });
   }
 
   return (
@@ -68,8 +41,8 @@ export function LoginPage() {
               required
             />
           </div>
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Enviando...' : 'Entrar com email'}
+          <button type="submit" className="btn-primary">
+            Comecar
           </button>
           {error && <p className="error-text">{error}</p>}
         </form>
