@@ -131,6 +131,53 @@ async function handlePixCheck(body: Record<string, unknown>) {
   }
 }
 
+// ── Route: Login with email + password ────────────────────────
+async function handleLogin(body: Record<string, unknown>) {
+  const { email, password } = body;
+  const db = sb();
+
+  if (!email || !password) return json({ error: "Email e senha obrigatorios" }, 400);
+
+  // Hash password for comparison
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const passwordHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+
+  // Check if user exists
+  const { data: existing } = await db
+    .from("subscriptions").select("*").eq("email", email)
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+
+  if (existing) {
+    // User exists — verify password
+    if (existing.password_hash !== passwordHash) {
+      return json({ error: "Senha incorreta" }, 401);
+    }
+    // Return subscription (even if expired — frontend handles redirect to pay)
+    const { data: payment } = await db
+      .from("payments").select("*").eq("subscription_id", existing.id)
+      .eq("status", "pending").limit(1).maybeSingle();
+    return json({ subscription: existing, payment: payment || null, isNew: false });
+  }
+
+  // New user — create subscription with password
+  const { data: plan } = await db
+    .from("subscription_plans").select("*").eq("active", true)
+    .limit(1).single();
+
+  const { data: sub, error } = await db
+    .from("subscriptions").insert({
+      email, plan_id: plan.id, analyses_used: 0,
+      analyses_limit: 5, status: "pending",
+      password_hash: passwordHash,
+    }).select().single();
+
+  if (error) throw error;
+  return json({ subscription: sub, payment: null, isNew: true });
+}
+
 // ── Route: Get or create subscription ─────────────────────────
 async function handleSubscription(body: Record<string, unknown>) {
   const { email } = body;
@@ -167,17 +214,53 @@ async function handleCheckSubscription(body: Record<string, unknown>) {
   const { email } = body;
   const db = sb();
 
-  const { data: sub } = await db
+  // Check for active (not expired) subscription
+  const { data: active } = await db
     .from("subscriptions").select("*").eq("email", email)
     .eq("status", "active").gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
 
-  if (!sub) return json({ allowed: false, remaining: 0, subscription: null });
-  return json({
-    allowed: sub.analyses_limit - sub.analyses_used > 0,
-    remaining: sub.analyses_limit - sub.analyses_used,
-    subscription: sub,
-  });
+  if (active) {
+    return json({
+      allowed: active.analyses_limit - active.analyses_used > 0,
+      remaining: active.analyses_limit - active.analyses_used,
+      subscription: active,
+      expired: false,
+    });
+  }
+
+  // Check for expired subscription
+  const { data: expired } = await db
+    .from("subscriptions").select("*").eq("email", email)
+    .eq("status", "active")
+    .lte("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+
+  if (expired) {
+    return json({
+      allowed: false,
+      remaining: 0,
+      subscription: expired,
+      expired: true,
+    });
+  }
+
+  // Check for pending subscription
+  const { data: pending } = await db
+    .from("subscriptions").select("*").eq("email", email)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+
+  if (pending) {
+    return json({
+      allowed: false,
+      remaining: 0,
+      subscription: pending,
+      expired: false,
+    });
+  }
+
+  return json({ allowed: false, remaining: 0, subscription: null, expired: false });
 }
 
 // ── Route: Increment usage ────────────────────────────────────
@@ -257,6 +340,7 @@ serve(async (req) => {
     const body = req.method === "POST" ? await req.json() : {};
     const route = body.route || "";
     switch (route) {
+      case "login": return await handleLogin(body);
       case "subscription": return await handleSubscription(body);
       case "subscription/check": return await handleCheckSubscription(body);
       case "subscription/increment": return await handleIncrement(body);

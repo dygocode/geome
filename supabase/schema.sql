@@ -57,6 +57,7 @@ VALUES ('Plano Basico', 5, 300, 'BRL');
 CREATE TABLE subscriptions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   email TEXT NOT NULL,
+  password_hash TEXT,
   plan_id UUID NOT NULL REFERENCES subscription_plans(id),
   analyses_used INT DEFAULT 0,
   analyses_limit INT NOT NULL,

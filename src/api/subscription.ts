@@ -84,6 +84,7 @@ export async function canUseAnalysis(email: string): Promise<{
   allowed: boolean;
   remaining: number;
   subscription: Subscription | null;
+  expired: boolean;
 }> {
   return invoke({ route: 'subscription/check', email });
 }

@@ -51,6 +51,29 @@
   margin-top: 1rem;
 }
 
+.login-new-user {
+  color: var(--color-ambar);
+  font-family: var(--font-secondary);
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.btn-back {
+  width: 100%;
+  background: transparent;
+  color: var(--color-chumbo);
+  font-size: 0.85rem;
+  padding: 0.5rem;
+  margin-top: 0.75rem;
+  border: none;
+}
+
+.btn-back:hover {
+  color: var(--color-grafite);
+}
+
 .error-text {
   color: #e53935;
   font-size: 0.85rem;
