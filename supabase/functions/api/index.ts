@@ -54,8 +54,10 @@ async function handlePixCreate(body: Record<string, unknown>) {
   const amount = Number(plan.price_cents);
 
   // Create Mercado Pago payment with PIX
+  const idempotencyKey = crypto.randomUUID();
   const payment = await mpFetch("/v1/payments", {
     method: "POST",
+    headers: { "X-Idempotency-Key": idempotencyKey },
     body: JSON.stringify({
       transaction_amount: amount,
       description: "Geome - Plano Basico",
