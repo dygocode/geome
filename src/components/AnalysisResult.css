@@ -197,6 +197,50 @@
   line-height: 1.5;
 }
 
+/* Competitors */
+.competitors-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.competitor-card {
+  background: white;
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.competitor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.competitor-name {
+  font-family: var(--font-secondary);
+  font-weight: 600;
+  color: var(--color-grafite);
+}
+
+.competitor-score {
+  font-family: var(--font-secondary);
+  font-weight: 600;
+  color: var(--color-ambar);
+}
+
+.competitor-bar {
+  background: linear-gradient(90deg, #78909C, #B0BEC5) !important;
+}
+
+.competitor-context {
+  font-size: 0.8rem;
+  color: var(--color-chumbo);
+  margin-top: 0.5rem;
+}
+
 @media (max-width: 640px) {
   .result-overview-left {
     flex-direction: column;

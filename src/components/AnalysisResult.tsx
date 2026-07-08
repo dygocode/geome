@@ -79,6 +79,29 @@ export function AnalysisResult({ result, onReset }: AnalysisResultProps) {
         ))}
       </div>
 
+      {result.competitors && result.competitors.length > 0 && (
+        <>
+          <h3>{t('competitors')}</h3>
+          <div className="competitors-grid">
+            {result.competitors.map((comp) => (
+              <div key={comp.name} className="competitor-card">
+                <div className="competitor-header">
+                  <span className="competitor-name">{comp.name}</span>
+                  <span className="competitor-score">{comp.score}/100</span>
+                </div>
+                <div className="platform-bar">
+                  <div
+                    className="platform-bar-fill competitor-bar"
+                    style={{ width: `${comp.score}%` }}
+                  />
+                </div>
+                <p className="competitor-context">{comp.context}</p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       <div className="recommendations-section">
         <h3>{t('recommendations')}</h3>
         <ol className="recommendations-list">

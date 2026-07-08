@@ -10,6 +10,7 @@ export interface CompanyFormData {
 export interface BrandPresenceResult {
   overallScore: number;
   brandMentions: BrandMention[];
+  competitors: Competitor[];
   summary: string;
   recommendations: string[];
 }
@@ -19,6 +20,12 @@ export interface BrandMention {
   score: number;
   context: string;
   examples: string[];
+}
+
+export interface Competitor {
+  name: string;
+  score: number;
+  context: string;
 }
 
 export type SegmentOption =

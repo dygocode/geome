@@ -95,7 +95,14 @@ Retorne APENAS um objeto JSON (sem markdown, sem crases):
 {
   "score": <numero 0-100>,
   "context": "<1-2 frases em portugues sobre como voce, como ${platform}, descreveria/mencionaria esta empresa>",
-  "examples": ["<exemplo de consulta ou resposta onde a empresa poderia aparecer, em portugues>"]
+  "examples": ["<exemplo de consulta ou resposta onde a empresa poderia aparecer, em portugues>"],
+  "competitors": [
+    {
+      "name": "<nome de um concorrente real no mesmo nicho>",
+      "score": <numero 0-100>,
+      "context": "<frase em portugues sobre por que este concorrente aparece mais/menos>"
+    }
+  ]
 }
 
 Diretrizes de pontuacao:
@@ -104,6 +111,8 @@ Diretrizes de pontuacao:
 - 50-69: Presenca moderada, aparece em algumas consultas relevantes
 - 30-49: Presenca limitada, raramente mencionada
 - 0-29: Praticamente desconhecida para voce
+
+Para os concorrentes: identifique 2-3 empresas reais do mesmo segmento que provavelmente teriam presenca nas respostas desta plataforma.
 
 LEMBRE-SE: Todo texto DEVE estar em portugues do Brasil. Responda SOMENTE com o JSON.`;
 }
@@ -431,6 +440,7 @@ async function handleAnalysis(body: Record<string, unknown>) {
 
   // Query each platform by its actual provider model
   const brandMentions: any[] = [];
+  const allCompetitors: any[] = [];
 
   for (const { platform, model, fallback } of PLATFORM_MODELS) {
     const prompt = buildPlatformPrompt(companyData, platform);
@@ -442,6 +452,9 @@ async function handleAnalysis(body: Record<string, unknown>) {
         const content = await openrouterFetch(m, messages);
         const parsed = parseAnalysisJson(content);
         mention = { platform, score: parsed.score, context: parsed.context, examples: parsed.examples };
+        if (parsed.competitors && Array.isArray(parsed.competitors)) {
+          parsed.competitors.forEach((c: any) => allCompetitors.push(c));
+        }
         break;
       } catch {
         continue;
@@ -454,6 +467,28 @@ async function handleAnalysis(body: Record<string, unknown>) {
       brandMentions.push({ platform, score: 0, context: "Nao foi possivel analisar esta plataforma.", examples: [] });
     }
   }
+
+  // Merge competitors: deduplicate by name, average scores
+  const compMap = new Map<string, { name: string; scores: number[]; contexts: string[] }>();
+  for (const c of allCompetitors) {
+    const key = c.name?.toLowerCase().trim();
+    if (!key) continue;
+    if (!compMap.has(key)) {
+      compMap.set(key, { name: c.name, scores: [], contexts: [] });
+    }
+    const entry = compMap.get(key)!;
+    if (c.score) entry.scores.push(c.score);
+    if (c.context) entry.contexts.push(c.context);
+  }
+
+  const competitors = Array.from(compMap.values())
+    .map((c) => ({
+      name: c.name,
+      score: c.scores.length > 0 ? Math.round(c.scores.reduce((a, b) => a + b, 0) / c.scores.length) : 0,
+      context: c.contexts[0] || "",
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
 
   // Get overall summary and recommendations from a neutral model
   let summary = "";
@@ -491,7 +526,7 @@ async function handleAnalysis(body: Record<string, unknown>) {
     ? Math.round(brandMentions.reduce((sum, m) => sum + m.score, 0) / brandMentions.length)
     : 0;
 
-  const result = { overallScore, brandMentions, summary, recommendations };
+  const result = { overallScore, brandMentions, competitors, summary, recommendations };
 
   if (company) {
     const { data: analysis } = await db.from("analyses").insert({
