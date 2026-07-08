@@ -46,34 +46,30 @@ async function mpFetch(path: string, options: RequestInit = {}): Promise<any> {
 }
 
 // ── OpenRouter API helper ─────────────────────────────────────
-async function openrouterFetch(model: string, messages: any[], retries = 3): Promise<string> {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": FRONTEND_URL,
-        "X-Title": "Geome Brand Analysis",
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.7,
-        max_tokens: 2000,
-      }),
-    });
-    const data = await res.json();
-    if (res.ok) return data.choices[0].message.content;
-    if (res.status === 429 && attempt < retries) {
-      const retryAfter = Number(res.headers.get("retry-after")) || 10;
-      const wait = Math.min(retryAfter, 30);
-      await new Promise((r) => setTimeout(r, wait * 1000));
-      continue;
-    }
-    throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(data)}`);
-  }
-  throw new Error(`OpenRouter: all retries exhausted for ${model}`);
+async function openrouterFetch(model: string, messages: any[]): Promise<string> {
+  const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": FRONTEND_URL,
+      "X-Title": "Geome Brand Analysis",
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.7,
+      max_tokens: 2000,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(data)}`);
+  return data.choices[0].message.content;
+}
+
+function parseAnalysisJson(content: string): any {
+  const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+  return JSON.parse(cleaned);
 }
 
 // ── Analysis prompt builder ───────────────────────────────────
@@ -413,10 +409,8 @@ async function handleAnalysis(body: Record<string, unknown>) {
     "openai/gpt-oss-120b:free",
     "qwen/qwen3-next-80b-a3b-instruct:free",
     "nousresearch/hermes-3-llama-3.1-405b:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
     "meta-llama/llama-3.3-70b-instruct:free",
     "google/gemma-4-26b-a4b-it:free",
-    "openai/gpt-oss-20b:free",
   ];
 
   const prompt = buildAnalysisPrompt({
@@ -426,30 +420,15 @@ async function handleAnalysis(body: Record<string, unknown>) {
     location: String(location),
   });
 
-  let result: any = null;
-  let lastError: Error | null = null;
+  const messages = [{ role: "user", content: prompt }];
 
-  for (let i = 0; i < models.length; i++) {
-    const model = models[i];
-    try {
-      const content = await openrouterFetch(model, [
-        { role: "user", content: prompt },
-      ]);
-      const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      result = JSON.parse(cleaned);
-      break;
-    } catch (err) {
-      lastError = err as Error;
-      if (i < models.length - 1) {
-        await new Promise((r) => setTimeout(r, 5000));
-      }
-      continue;
-    }
-  }
-
-  if (!result) {
-    throw new Error(`All models failed. Last error: ${lastError?.message}`);
-  }
+  // Try all models in parallel, use first successful response
+  const result = await Promise.any(
+    models.map(async (model) => {
+      const content = await openrouterFetch(model, messages);
+      return parseAnalysisJson(content);
+    })
+  );
 
   if (company) {
     const { data: analysis } = await db.from("analyses").insert({
