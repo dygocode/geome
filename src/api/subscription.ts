@@ -92,3 +92,7 @@ export async function canUseAnalysis(email: string): Promise<{
 export async function incrementUsage(subscriptionId: string): Promise<void> {
   await invoke({ route: 'subscription/increment', subscription_id: subscriptionId });
 }
+
+export async function renewSubscription(subscriptionId: string): Promise<{ ok: boolean; expires_at: string }> {
+  return invoke({ route: 'subscription/renew', subscription_id: subscriptionId });
+}

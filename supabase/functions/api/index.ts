@@ -124,7 +124,11 @@ async function handlePixCheck(body: Record<string, unknown>) {
       expiresAt.setDate(expiresAt.getDate() + 30);
 
       await db.from("subscriptions")
-        .update({ status: "active", expires_at: expiresAt.toISOString() })
+        .update({
+          status: "active",
+          expires_at: expiresAt.toISOString(),
+          analyses_used: 0,
+        })
         .eq("id", payment.subscription_id);
     }
 
@@ -202,7 +206,7 @@ async function handleSubscription(body: Record<string, unknown>) {
   if (existing) {
     const { data: payment } = await db
       .from("payments").select(SAFE_PAYMENT_FIELDS).eq("subscription_id", existing.id)
-      .eq("status", "pending").limit(1).maybeSingle();
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
     return json({ subscription: existing, payment: payment || null });
   }
 
@@ -292,6 +296,27 @@ async function handleIncrement(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Route: Renew subscription ──────────────────────────────────
+async function handleRenew(body: Record<string, unknown>) {
+  const { subscription_id } = body;
+  const db = sb();
+
+  const { data: sub } = await db
+    .from("subscriptions").select("id, expires_at")
+    .eq("id", subscription_id).single();
+
+  if (!sub) return json({ error: "Not found" }, 404);
+
+  const newExpiresAt = new Date();
+  newExpiresAt.setDate(newExpiresAt.getDate() + 30);
+
+  await db.from("subscriptions")
+    .update({ analyses_used: 0, expires_at: newExpiresAt.toISOString() })
+    .eq("id", subscription_id);
+
+  return json({ ok: true, expires_at: newExpiresAt.toISOString() });
+}
+
 // ── Route: Run analysis ───────────────────────────────────────
 async function handleAnalysis(body: Record<string, unknown>) {
   const db = sb();
@@ -355,6 +380,7 @@ serve(async (req) => {
       case "subscription": return await handleSubscription(body);
       case "subscription/check": return await handleCheckSubscription(body);
       case "subscription/increment": return await handleIncrement(body);
+      case "subscription/renew": return await handleRenew(body);
       case "pix/create": return await handlePixCreate(body);
       case "pix/check": return await handlePixCheck(body);
       case "analysis": return await handleAnalysis(body);
