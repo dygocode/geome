@@ -21,6 +21,9 @@ function json(data: unknown, status = 200) {
   });
 }
 
+const SAFE_SUB_FIELDS = "id, email, plan_id, analyses_used, analyses_limit, status, created_at, expires_at";
+const SAFE_PAYMENT_FIELDS = "id, subscription_id, external_id, amount_cents, currency, status, pix_copy_paste, pix_qr_code, ticket_url, created_at";
+
 function sb() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 }
@@ -83,7 +86,7 @@ async function handlePixCreate(body: Record<string, unknown>) {
       bank_code: "mercadopago",
       agency: "pix",
     })
-    .select()
+    .select("id")
     .single();
 
   if (dbErr) throw dbErr;
@@ -103,7 +106,7 @@ async function handlePixCheck(body: Record<string, unknown>) {
   const db = sb();
 
   const { data: payment } = await db
-    .from("payments").select("*").eq("id", payment_id).single();
+    .from("payments").select("id, subscription_id, external_id, status").eq("id", payment_id).single();
 
   if (!payment) return json({ paid: false });
   if (payment.status === "approved") return json({ paid: true });
@@ -138,9 +141,9 @@ async function handleLogin(body: Record<string, unknown>) {
 
   if (!email) return json({ error: "Email obrigatorio" }, 400);
 
-  // Check if user exists
+  // Check if user exists (need password_hash for verification)
   const { data: existing } = await db
-    .from("subscriptions").select("*").eq("email", email)
+    .from("subscriptions").select("id, email, plan_id, analyses_used, analyses_limit, status, created_at, expires_at, password_hash").eq("email", email)
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
 
   // Check-only mode: just return if user exists
@@ -163,9 +166,10 @@ async function handleLogin(body: Record<string, unknown>) {
       return json({ error: "Senha incorreta" }, 401);
     }
     const { data: payment } = await db
-      .from("payments").select("*").eq("subscription_id", existing.id)
+      .from("payments").select(SAFE_PAYMENT_FIELDS).eq("subscription_id", existing.id)
       .eq("status", "pending").limit(1).maybeSingle();
-    return json({ subscription: existing, payment: payment || null, isNew: false });
+    const { password_hash, ...safeSub } = existing;
+    return json({ subscription: safeSub, payment: payment || null, isNew: false });
   }
 
   // New user — create subscription with password
@@ -178,10 +182,11 @@ async function handleLogin(body: Record<string, unknown>) {
       email, plan_id: plan.id, analyses_used: 0,
       analyses_limit: 5, status: "pending",
       password_hash: passwordHash,
-    }).select().single();
+    }).select(SAFE_SUB_FIELDS).single();
 
   if (error) throw error;
-  return json({ subscription: sub, payment: null, isNew: true });
+  const { password_hash: _, ...safeSub } = sub;
+  return json({ subscription: safeSub, payment: null, isNew: true });
 }
 
 // ── Route: Get or create subscription ─────────────────────────
@@ -190,13 +195,13 @@ async function handleSubscription(body: Record<string, unknown>) {
   const db = sb();
 
   const { data: existing } = await db
-    .from("subscriptions").select("*").eq("email", email)
+    .from("subscriptions").select(SAFE_SUB_FIELDS).eq("email", email)
     .in("status", ["pending", "active"])
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
 
   if (existing) {
     const { data: payment } = await db
-      .from("payments").select("*").eq("subscription_id", existing.id)
+      .from("payments").select(SAFE_PAYMENT_FIELDS).eq("subscription_id", existing.id)
       .eq("status", "pending").limit(1).maybeSingle();
     return json({ subscription: existing, payment: payment || null });
   }
@@ -209,7 +214,7 @@ async function handleSubscription(body: Record<string, unknown>) {
     .from("subscriptions").insert({
       email, plan_id: plan.id, analyses_used: 0,
       analyses_limit: 5, status: "pending",
-    }).select().single();
+    }).select(SAFE_SUB_FIELDS).single();
 
   if (error) throw error;
   return json({ subscription: sub, payment: null });
@@ -222,7 +227,7 @@ async function handleCheckSubscription(body: Record<string, unknown>) {
 
   // Check for active (not expired) subscription
   const { data: active } = await db
-    .from("subscriptions").select("*").eq("email", email)
+    .from("subscriptions").select(SAFE_SUB_FIELDS).eq("email", email)
     .eq("status", "active").gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
 
@@ -237,7 +242,7 @@ async function handleCheckSubscription(body: Record<string, unknown>) {
 
   // Check for expired subscription
   const { data: expired } = await db
-    .from("subscriptions").select("*").eq("email", email)
+    .from("subscriptions").select(SAFE_SUB_FIELDS).eq("email", email)
     .eq("status", "active")
     .lte("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -253,7 +258,7 @@ async function handleCheckSubscription(body: Record<string, unknown>) {
 
   // Check for pending subscription
   const { data: pending } = await db
-    .from("subscriptions").select("*").eq("email", email)
+    .from("subscriptions").select(SAFE_SUB_FIELDS).eq("email", email)
     .eq("status", "pending")
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
 
