@@ -1,8 +1,11 @@
 {
-  "buildCommand": "bun run build",
+  "cleanUrls": false,
+  "trailingSlash": false,
   "outputDirectory": "dist",
-  "framework": "vite",
   "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!assets/|favicon\\.svg|icons\\.svg|robots\\.txt).*)",
+      "destination": "/index.html"
+    }
   ]
 }
