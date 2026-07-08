@@ -80,40 +80,46 @@ function parseAnalysisJson(content: string): any {
   return JSON.parse(cleaned);
 }
 
-// ── Analysis prompt builder ───────────────────────────────────
-function buildAnalysisPrompt(company: {
+// ── Platform-specific prompt builder ─────────────────────────
+function buildPlatformPrompt(company: {
   companyName: string;
   website: string;
   segment: string;
   location: string;
-}): string {
-  return `Voce e um analista de presenca de marca. Avalie quao bem a empresa "${company.companyName}" (${company.website}, segmento: ${company.segment}, localizacao: ${company.location}) apareceria em respostas do ChatGPT, Claude e Gemini.
+}, platform: string): string {
+  return `Voce e o modelo de IA "${platform}". Analise quao bem a empresa "${company.companyName}" (${company.website}, segmento: ${company.segment}, localizacao: ${company.location}) apareceria nas suas respostas.
 
-IMPORTANTE: TODO o texto (contexto, exemplos, resumo, recomendacoes) DEVE ser escrito em portugues do Brasil. Nao use ingles em nenhum campo de texto.
+IMPORTANTE: Responda APENAS sobre a plataforma "${platform}". Nao mencione outras plataformas.
 
-Retorne APENAS um objeto JSON com esta estrutura exata (sem markdown, sem crases):
+Retorne APENAS um objeto JSON (sem markdown, sem crases):
 {
-  "overallScore": <numero 0-100>,
-  "brandMentions": [
-    {
-      "platform": "ChatGPT",
-      "score": <numero 0-100>,
-      "context": "<1-2 frases em portugues sobre como esta plataforma descreveria/mencionaria a empresa>",
-      "examples": ["<exemplo de consulta ou resposta onde a empresa poderia aparecer, em portugues>"]
-    },
-    {
-      "platform": "Claude",
-      "score": <numero 0-100>,
-      "context": "<em portugues>",
-      "examples": ["<em portugues>"]
-    },
-    {
-      "platform": "Gemini",
-      "score": <numero 0-100>,
-      "context": "<em portugues>",
-      "examples": ["<em portugues>"]
-    }
-  ],
+  "score": <numero 0-100>,
+  "context": "<1-2 frases em portugues sobre como voce, como ${platform}, descreveria/mencionaria esta empresa>",
+  "examples": ["<exemplo de consulta ou resposta onde a empresa poderia aparecer, em portugues>"]
+}
+
+Diretrizes de pontuacao:
+- 90-100: Empresa amplamente conhecida e frequentemente mencionada
+- 70-89: Empresa com presenca solida, mencionada em contextos relevantes
+- 50-69: Presenca moderada, aparece em algumas consultas relevantes
+- 30-49: Presenca limitada, raramente mencionada
+- 0-29: Praticamente desconhecida para voce
+
+LEMBRE-SE: Todo texto DEVE estar em portugues do Brasil. Responda SOMENTE com o JSON.`;
+}
+
+function buildSummaryPrompt(company: {
+  companyName: string;
+  segment: string;
+}, platformResults: { platform: string; score: number; context: string }[]): string {
+  const resultsText = platformResults.map(p => `- ${p.platform} (score: ${p.score}): ${p.context}`).join('\n');
+  return `Com base nas analises das plataformas de IA para a empresa "${company.companyName}" (segmento: ${company.segment}), gere um resumo e recomendacoes.
+
+Dados das plataformas:
+${resultsText}
+
+Retorne APENAS um objeto JSON (sem markdown, sem crases):
+{
   "summary": "<resumo de 2-3 frases em portugues sobre a presenca da marca nas plataformas de IA>",
   "recommendations": [
     "<recomendacao acionavel 1 em portugues>",
@@ -122,15 +128,15 @@ Retorne APENAS um objeto JSON com esta estrutura exata (sem markdown, sem crases
   ]
 }
 
-Diretrizes de pontuacao:
-- 90-100: Empresa amplamente conhecida e frequentemente mencionada
-- 70-89: Empresa com presenca solida, mencionada em contextos relevantes
-- 50-69: Presenca moderada, aparece em algumas consultas relevantes
-- 30-49: Presenca limitada, raramente mencionada
-- 0-29: Praticamente desconhecida para modelos de IA
-
-LEMBRE-SE: Todos os campos de texto DEVEM estar em portugues do Brasil. Responda SOMENTE com o JSON, sem nenhum texto adicional.`;
+LEMBRE-SE: Todo texto DEVE estar em portugues do Brasil. Responda SOMENTE com o JSON.`;
 }
+
+// ── Platform config: which model answers for each platform ───
+const PLATFORM_MODELS: { platform: string; model: string; fallback: string }[] = [
+  { platform: "ChatGPT", model: "openai/gpt-oss-120b:free", fallback: "openai/gpt-oss-20b:free" },
+  { platform: "Gemini", model: "google/gemma-4-31b-it:free", fallback: "google/gemma-4-26b-a4b-it:free" },
+  { platform: "Claude", model: "qwen/qwen3-next-80b-a3b-instruct:free", fallback: "nousresearch/hermes-3-llama-3.1-405b:free" },
+];
 
 // ── Route: Create checkout (PIX via Mercado Pago) ─────────────
 async function handlePixCreate(body: Record<string, unknown>) {
@@ -416,45 +422,76 @@ async function handleAnalysis(body: Record<string, unknown>) {
     contact_name: contactName || "", email: email || "",
   }).select().single();
 
-  const models = [
-    "google/gemma-4-31b-it:free",
-    "openai/gpt-oss-120b:free",
-    "qwen/qwen3-next-80b-a3b-instruct:free",
-    "nousresearch/hermes-3-llama-3.1-405b:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "google/gemma-4-26b-a4b-it:free",
-    "openai/gpt-oss-20b:free",
-    "tencent/hy3:free",
-    "qwen/qwen3-coder:free",
-  ];
-
-  const prompt = buildAnalysisPrompt({
+  const companyData = {
     companyName: String(companyName),
     website: String(website),
     segment: String(segment),
     location: String(location),
-  });
+  };
 
-  const messages = [{ role: "user", content: prompt }];
+  // Query each platform by its actual provider model
+  const brandMentions: any[] = [];
 
-  let result: any = null;
-  let lastError: Error | null = null;
+  for (const { platform, model, fallback } of PLATFORM_MODELS) {
+    const prompt = buildPlatformPrompt(companyData, platform);
+    const messages = [{ role: "user", content: prompt }];
 
-  for (const model of models) {
+    let mention = null;
+    for (const m of [model, fallback]) {
+      try {
+        const content = await openrouterFetch(m, messages);
+        const parsed = parseAnalysisJson(content);
+        mention = { platform, score: parsed.score, context: parsed.context, examples: parsed.examples };
+        break;
+      } catch {
+        continue;
+      }
+    }
+
+    if (mention) {
+      brandMentions.push(mention);
+    } else {
+      brandMentions.push({ platform, score: 0, context: "Nao foi possivel analisar esta plataforma.", examples: [] });
+    }
+  }
+
+  // Get overall summary and recommendations from a neutral model
+  let summary = "";
+  let recommendations: string[] = [];
+
+  const summaryPrompt = buildSummaryPrompt(companyData, brandMentions);
+  const summaryModels = [
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "tencent/hy3:free",
+  ];
+
+  for (const m of summaryModels) {
     try {
-      const content = await openrouterFetch(model, messages);
-      result = parseAnalysisJson(content);
+      const content = await openrouterFetch(m, [{ role: "user", content: summaryPrompt }]);
+      const parsed = parseAnalysisJson(content);
+      summary = parsed.summary;
+      recommendations = parsed.recommendations;
       break;
-    } catch (err) {
-      lastError = err as Error;
+    } catch {
       continue;
     }
   }
 
-  if (!result) {
-    throw new Error(`All models failed. Last: ${lastError?.message}`);
+  if (!summary) {
+    summary = `Analise de presenca da marca ${companyName} nas principais plataformas de IA.`;
+    recommendations = [
+      "Aumente a publicacao de conteudo tecnico no site",
+      "Participe de discussoes sobre inovacao no setor",
+      "Garanta informacoes atualizadas em fontes publicas",
+    ];
   }
+
+  const overallScore = brandMentions.length > 0
+    ? Math.round(brandMentions.reduce((sum, m) => sum + m.score, 0) / brandMentions.length)
+    : 0;
+
+  const result = { overallScore, brandMentions, summary, recommendations };
 
   if (company) {
     const { data: analysis } = await db.from("analyses").insert({
