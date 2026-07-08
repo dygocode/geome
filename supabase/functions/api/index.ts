@@ -400,9 +400,9 @@ async function handleAnalysis(body: Record<string, unknown>) {
   }).select().single();
 
   const models = [
-    "google/gemini-2.0-flash-exp:free",
-    "openai/gpt-4o-mini:free",
-    "anthropic/claude-3-haiku:free",
+    "google/gemma-4-31b-it:free",
+    "openai/gpt-oss-120b:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
   ];
 
   const prompt = buildAnalysisPrompt({
