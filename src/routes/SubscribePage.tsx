@@ -8,6 +8,7 @@ import {
   type Subscription,
   type Payment,
 } from '../api/subscription';
+import { t } from '../i18n';
 import './SubscribePage.css';
 
 export function SubscribePage() {
@@ -57,7 +58,7 @@ export function SubscribePage() {
       }
       // If active but limit reached, stay on this page to show renewal option
     } catch (err: any) {
-      setError(`Erro: ${err.message}`);
+      setError(`Error: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -72,10 +73,10 @@ export function SubscribePage() {
         setSubscription(sub);
         navigate({ to: '/form', search: { email } });
       } else {
-        setError('Pagamento ainda nao confirmado. Aguarde alguns instantes.');
+        setError(t('paymentNotConfirmed'));
       }
     } catch {
-      setError('Erro ao verificar pagamento.');
+      setError(t('paymentError'));
     } finally {
       setChecking(false);
     }
@@ -90,7 +91,7 @@ export function SubscribePage() {
       const newPayment = await generatePayment(subscription.id, email);
       setPayment(newPayment);
     } catch (err: any) {
-      setError(`Erro ao renovar: ${err.message}`);
+      setError(`Error: ${err.message}`);
     } finally {
       setChecking(false);
     }
@@ -107,7 +108,7 @@ export function SubscribePage() {
     return (
       <div className="subscribe-page">
         <div className="subscribe-card">
-          <h2>Preparando pagamento...</h2>
+          <h2>{t('loading')}</h2>
         </div>
       </div>
     );
@@ -118,37 +119,37 @@ export function SubscribePage() {
       <div className="subscribe-card">
         {limitReached && !payment ? (
           <>
-            <h2>Limite Atingido</h2>
+            <h2>{t('limitReached')}</h2>
             <div className="plan-badge">
-              <span className="plan-limit">{PLAN_CONFIG.analysesLimit} analises</span>
+              <span className="plan-limit">{PLAN_CONFIG.analysesLimit} {t('analyses')}</span>
               <span className="plan-price">R$ {(PLAN_CONFIG.priceCents / 100).toFixed(2).replace('.', ',')}</span>
             </div>
             <p className="limit-message">
-              Voce utilizou todas as {subscription?.analyses_limit} analises do seu plano.
+              {t('limitMessage', { limit: subscription?.analyses_limit || 5 })}
             </p>
             <p className="limit-submessage">
-              Renove para receber mais 5 analises e continuar analisando sua presenca nas IAs.
+              {t('limitSubmessage')}
             </p>
             <button
               className="btn-primary"
               onClick={handleRenew}
               disabled={checking}
             >
-              {checking ? 'Gerando pagamento...' : 'Renovar Plano'}
+              {checking ? t('generatePayment') : t('renewPlan')}
             </button>
             {error && <p className="error-text">{error}</p>}
           </>
         ) : payment ? (
           <>
-            <h2>{limitReached ? 'Renovar Plano' : 'Desbloquear Analise'}</h2>
+            <h2>{limitReached ? t('renewPlan') : t('unlockAnalysis')}</h2>
             <div className="plan-badge">
-              <span className="plan-limit">{PLAN_CONFIG.analysesLimit} analises</span>
+              <span className="plan-limit">{PLAN_CONFIG.analysesLimit} {t('analyses')}</span>
               <span className="plan-price">R$ {(PLAN_CONFIG.priceCents / 100).toFixed(2).replace('.', ',')}</span>
             </div>
 
             <div className="payment-section">
-              <h3>Pague via PIX</h3>
-              <p className="bank-info">Mercado Pago</p>
+              <h3>{t('payViaPix')}</h3>
+              <p className="bank-info">{t('mercadoPago')}</p>
 
               {payment.pix_qr_code && (
                 <img
@@ -159,7 +160,7 @@ export function SubscribePage() {
               )}
 
               <button className="btn-copy" onClick={handleCopyPix}>
-                {copied ? 'Copiado!' : 'Copiar codigo PIX'}
+                {copied ? t('copied') : t('copyPixCode')}
               </button>
 
               <button
@@ -167,18 +168,18 @@ export function SubscribePage() {
                 onClick={handleCheckPayment}
                 disabled={checking}
               >
-                {checking ? 'Verificando...' : 'Ja paguei'}
+                {checking ? t('verifying') : t('alreadyPaid')}
               </button>
 
               {error && <p className="error-text">{error}</p>}
 
               <p className="hint">
-                O pagamento e confirmado automaticamente em segundos.
+                {t('paymentConfirmed')}
               </p>
             </div>
           </>
         ) : (
-          <p className="error-text">Nenhum pagamento encontrado.</p>
+          <p className="error-text">{t('noPayment')}</p>
         )}
       </div>
     </div>

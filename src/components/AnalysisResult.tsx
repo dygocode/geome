@@ -1,4 +1,5 @@
 import type { BrandPresenceResult } from '../types';
+import { t } from '../i18n';
 import './AnalysisResult.css';
 
 interface AnalysisResultProps {
@@ -41,20 +42,20 @@ export function AnalysisResult({ result, onReset }: AnalysisResultProps) {
   return (
     <div className="analysis-result">
       <button className="back-button" onClick={onReset}>
-        &larr; Nova Analise
+        &larr; {t('newAnalysis')}
       </button>
 
       <div className="result-overview">
         <div className="result-overview-left">
           <ScoreRing score={result.overallScore} />
           <div>
-            <h2>Brand Presence Score</h2>
+            <h2>{t('brandPresenceScore')}</h2>
             <p className="result-summary">{result.summary}</p>
           </div>
         </div>
       </div>
 
-      <h3>Presenca por Plataforma</h3>
+      <h3>{t('presenceByPlatform')}</h3>
       <div className="platform-grid">
         {result.brandMentions.map((mention) => (
           <div key={mention.platform} className="platform-card">
@@ -79,7 +80,7 @@ export function AnalysisResult({ result, onReset }: AnalysisResultProps) {
       </div>
 
       <div className="recommendations-section">
-        <h3>Recomendacoes</h3>
+        <h3>{t('recommendations')}</h3>
         <ol className="recommendations-list">
           {result.recommendations.map((rec, i) => (
             <li key={i}>{rec}</li>

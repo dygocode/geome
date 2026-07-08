@@ -81,6 +81,8 @@ function buildAnalysisPrompt(company: {
 }): string {
   return `You are a brand presence analyst. Evaluate how well the company "${company.companyName}" (${company.website}, segment: ${company.segment}, location: ${company.location}) would appear in responses from ChatGPT, Claude, and Gemini.
 
+IMPORTANT: All text fields (context, examples, summary, recommendations) MUST be written in Brazilian Portuguese (pt-BR).
+
 Return ONLY a JSON object with this exact structure (no markdown, no code fences):
 {
   "overallScore": <number 0-100>,
@@ -88,8 +90,8 @@ Return ONLY a JSON object with this exact structure (no markdown, no code fences
     {
       "platform": "ChatGPT",
       "score": <number 0-100>,
-      "context": "<1-2 sentences about how this platform would describe/mention the company>",
-      "examples": ["<example query or response where the company might appear>"]
+      "context": "<1-2 frases em portugues sobre como esta plataforma descreveria/mencionaria a empresa>",
+      "examples": ["<exemplo de consulta ou resposta onde a empresa poderia aparecer>"]
     },
     {
       "platform": "Claude",
@@ -104,20 +106,20 @@ Return ONLY a JSON object with this exact structure (no markdown, no code fences
       "examples": ["..."]
     }
   ],
-  "summary": "<2-3 sentence overall summary of brand presence across AI platforms>",
+  "summary": "<resumo de 2-3 frases em portugues sobre a presenca da marca nas plataformas de IA>",
   "recommendations": [
-    "<actionable recommendation 1>",
-    "<actionable recommendation 2>",
-    "<actionable recommendation 3>"
+    "<recomendacao acionavel 1 em portugues>",
+    "<recomendacao acionavel 2 em portugues>",
+    "<recomendacao acionavel 3 em portugues>"
   ]
 }
 
 Score guidelines:
-- 90-100: Company is widely known and frequently mentioned
-- 70-89: Company has solid presence, mentioned in relevant contexts
-- 50-69: Moderate presence, appears in some relevant queries
-- 30-49: Limited presence, rarely mentioned
-- 0-29: Virtually unknown to AI models`;
+- 90-100: Empresa amplamente conhecida e frequentemente mencionada
+- 70-89: Empresa com presenca solida, mencionada em contextos relevantes
+- 50-69: Presenca moderada, aparece em algumas consultas relevantes
+- 30-49: Presenca limitada, raramente mencionada
+- 0-29: Praticamente desconhecida para modelos de IA`;
 }
 
 // ── Route: Create checkout (PIX via Mercado Pago) ─────────────

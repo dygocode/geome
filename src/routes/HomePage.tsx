@@ -3,6 +3,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 import { CompanyForm } from '../components/CompanyForm';
 import { canUseAnalysis, incrementUsage } from '../api/subscription';
 import { submitAnalysis } from '../api/client';
+import { t } from '../i18n';
 import type { CompanyFormData } from '../types';
 import './HomePage.css';
 
@@ -86,7 +87,7 @@ export function HomePage() {
   if (pendingProcessing) {
     return (
       <div style={{ textAlign: 'center', padding: '4rem 0' }}>
-        <p>Processando sua analise...</p>
+        <p>{t('processingAnalysis')}</p>
       </div>
     );
   }
@@ -95,19 +96,19 @@ export function HomePage() {
     <>
       {expired && (
         <div className="expired-bar">
-          <span>Seu plano expirou. Renove para continuar analisando.</span>
+          <span>{t('planExpired')}</span>
           <button
             className="btn-renew"
             onClick={() => navigate({ to: '/subscribe', search: { email: search.email || '' } })}
           >
-            Renovar
+            {t('renew')}
           </button>
         </div>
       )}
       {!expired && remaining > 0 && (
         <div className="subscription-bar">
           <span>
-            <strong>{remaining}</strong> {remaining === 1 ? 'analise restante' : 'analises restantes'}
+            <strong>{remaining}</strong> {remaining === 1 ? t('analysisRemaining') : t('analysesRemaining')}
           </span>
         </div>
       )}
