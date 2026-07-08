@@ -46,25 +46,33 @@ async function mpFetch(path: string, options: RequestInit = {}): Promise<any> {
 }
 
 // ── OpenRouter API helper ─────────────────────────────────────
-async function openrouterFetch(model: string, messages: any[]): Promise<string> {
-  const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": FRONTEND_URL,
-      "X-Title": "Geome Brand Analysis",
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.7,
-      max_tokens: 2000,
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(data)}`);
-  return data.choices[0].message.content;
+async function openrouterFetch(model: string, messages: any[], retries = 2): Promise<string> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": FRONTEND_URL,
+        "X-Title": "Geome Brand Analysis",
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.7,
+        max_tokens: 2000,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok) return data.choices[0].message.content;
+    if (res.status === 429 && attempt < retries) {
+      const retryAfter = Number(res.headers.get("retry-after")) || 7;
+      await new Promise((r) => setTimeout(r, retryAfter * 1000));
+      continue;
+    }
+    throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(data)}`);
+  }
+  throw new Error(`OpenRouter: all retries exhausted for ${model}`);
 }
 
 // ── Analysis prompt builder ───────────────────────────────────
@@ -415,7 +423,8 @@ async function handleAnalysis(body: Record<string, unknown>) {
   let result: any = null;
   let lastError: Error | null = null;
 
-  for (const model of models) {
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
     try {
       const content = await openrouterFetch(model, [
         { role: "user", content: prompt },
@@ -425,6 +434,9 @@ async function handleAnalysis(body: Record<string, unknown>) {
       break;
     } catch (err) {
       lastError = err as Error;
+      if (i < models.length - 1) {
+        await new Promise((r) => setTimeout(r, 8000));
+      }
       continue;
     }
   }
