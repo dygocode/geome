@@ -1,11 +1,34 @@
 import { supabase } from '../lib/supabase';
 
-export const PLAN_CONFIG = {
-  analysesLimit: 6,
-  priceCents: 1200,
-  currency: 'BRL',
-  label: '6 analises por R$ 12,00',
-};
+export interface PlanConfig {
+  id: string;
+  name: string;
+  analysesLimit: number;
+  priceCents: number;
+  currency: string;
+}
+
+let cachedPlan: PlanConfig | null = null;
+
+export async function getPlanConfig(): Promise<PlanConfig> {
+  if (cachedPlan) return cachedPlan;
+
+  const { data, error } = await supabase.functions.invoke('api', {
+    body: { route: 'plan/get' },
+  });
+
+  if (error) throw new Error(error.message);
+
+  cachedPlan = {
+    id: data.id,
+    name: data.name,
+    analysesLimit: data.analyses_limit,
+    priceCents: data.price_cents,
+    currency: data.currency,
+  };
+
+  return cachedPlan;
+}
 
 export interface Subscription {
   id: string;
@@ -47,6 +70,7 @@ export async function generatePayment(
   subscriptionId: string,
   email: string
 ): Promise<Payment> {
+  const plan = await getPlanConfig();
   const data = await invoke({
     route: 'pix/create',
     subscription_id: subscriptionId,
@@ -57,8 +81,8 @@ export async function generatePayment(
     id: data.payment_id,
     subscription_id: subscriptionId,
     external_id: String(data.transaction_id),
-    amount_cents: PLAN_CONFIG.priceCents,
-    currency: PLAN_CONFIG.currency,
+    amount_cents: plan.priceCents,
+    currency: plan.currency,
     status: 'pending',
     pix_copy_paste: data.pix_copy_paste,
     pix_qr_code: data.qr_code_base64,

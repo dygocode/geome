@@ -4,7 +4,8 @@ import {
   getOrCreateSubscription,
   generatePayment,
   checkAndActivatePayment,
-  PLAN_CONFIG,
+  getPlanConfig,
+  type PlanConfig,
   type Subscription,
   type Payment,
 } from '../api/subscription';
@@ -16,6 +17,7 @@ export function SubscribePage() {
   const search = useSearch({ strict: false }) as { email?: string };
 
   const email = search.email || sessionStorage.getItem('analysisEmail') || '';
+  const [plan, setPlan] = useState<PlanConfig | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [payment, setPayment] = useState<Payment | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,6 +29,7 @@ export function SubscribePage() {
     subscription.analyses_used >= subscription.analyses_limit;
 
   useEffect(() => {
+    getPlanConfig().then(setPlan).catch(() => {});
     if (email) {
       loadPayment(email);
     } else {
@@ -38,7 +41,11 @@ export function SubscribePage() {
     setLoading(true);
     setError('');
     try {
-      const { subscription: sub, payment: pay } = await getOrCreateSubscription(emailAddr);
+      const [planConfig, { subscription: sub, payment: pay }] = await Promise.all([
+        getPlanConfig(),
+        getOrCreateSubscription(emailAddr),
+      ]);
+      setPlan(planConfig);
       setSubscription(sub);
 
       // If active and limit NOT reached, go to form
@@ -114,6 +121,9 @@ export function SubscribePage() {
     );
   }
 
+  const planLimit = plan?.analysesLimit || 6;
+  const planPrice = plan?.priceCents || 1200;
+
   return (
     <div className="subscribe-page">
       <div className="subscribe-card">
@@ -121,11 +131,11 @@ export function SubscribePage() {
           <>
             <h2>{t('limitReached')}</h2>
             <div className="plan-badge">
-              <span className="plan-limit">{PLAN_CONFIG.analysesLimit} {t('analyses')}</span>
-              <span className="plan-price">R$ {(PLAN_CONFIG.priceCents / 100).toFixed(2).replace('.', ',')}</span>
+              <span className="plan-limit">{planLimit} {t('analyses')}</span>
+              <span className="plan-price">R$ {(planPrice / 100).toFixed(2).replace('.', ',')}</span>
             </div>
             <p className="limit-message">
-              {t('limitMessage', { limit: subscription?.analyses_limit || 5 })}
+              {t('limitMessage', { limit: subscription?.analyses_limit || planLimit })}
             </p>
             <p className="limit-submessage">
               {t('limitSubmessage')}
@@ -143,8 +153,8 @@ export function SubscribePage() {
           <>
             <h2>{limitReached ? t('renewPlan') : t('unlockAnalysis')}</h2>
             <div className="plan-badge">
-              <span className="plan-limit">{PLAN_CONFIG.analysesLimit} {t('analyses')}</span>
-              <span className="plan-price">R$ {(PLAN_CONFIG.priceCents / 100).toFixed(2).replace('.', ',')}</span>
+              <span className="plan-limit">{planLimit} {t('analyses')}</span>
+              <span className="plan-price">R$ {(planPrice / 100).toFixed(2).replace('.', ',')}</span>
             </div>
 
             <div className="payment-section">

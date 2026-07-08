@@ -478,6 +478,19 @@ async function handleAnalysis(body: Record<string, unknown>) {
   return json(result);
 }
 
+// ── Route: Get active plan ────────────────────────────────────
+async function handleGetPlan() {
+  const db = sb();
+  const { data: plan } = await db
+    .from("subscription_plans").select("id, name, analyses_limit, price_cents, currency")
+    .eq("active", true)
+    .limit(1)
+    .single();
+
+  if (!plan) return json({ error: "No active plan found" }, 404);
+  return json(plan);
+}
+
 // ── Router ────────────────────────────────────────────────────
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -494,6 +507,7 @@ serve(async (req) => {
       case "subscription/renew": return await handleRenew(body);
       case "pix/create": return await handlePixCreate(body);
       case "pix/check": return await handlePixCheck(body);
+      case "plan/get": return await handleGetPlan();
       case "analysis": return await handleAnalysis(body);
       default: return json({ error: `Unknown route: ${route}` }, 404);
     }
