@@ -42,6 +42,29 @@
   width: 100%;
 }
 
+.input-prefix {
+  display: flex;
+  align-items: stretch;
+}
+
+.input-prefix-label {
+  display: flex;
+  align-items: center;
+  background: var(--color-grafite);
+  color: white;
+  padding: 0 0.75rem;
+  font-size: 0.85rem;
+  font-family: var(--font-secondary);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  white-space: nowrap;
+}
+
+.input-prefix input {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0 !important;
+  flex: 1;
+  min-width: 0;
+}
+
 .form-submit {
   background-color: var(--color-ambar);
   color: var(--color-grafite);

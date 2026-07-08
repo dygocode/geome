@@ -63,15 +63,18 @@ export function CompanyForm({ onSubmit, isLoading }: CompanyFormProps) {
 
         <div className="form-group">
           <label htmlFor="website">{t('website')}</label>
-          <input
-            id="website"
-            name="website"
-            type="url"
-            placeholder={t('websitePlaceholder')}
-            value={form.website}
-            onChange={handleChange}
-            required
-          />
+          <div className="input-prefix">
+            <span className="input-prefix-label">https://</span>
+            <input
+              id="website"
+              name="website"
+              type="url"
+              placeholder={t('websitePlaceholder')}
+              value={form.website}
+              onChange={handleChange}
+              required
+            />
+          </div>
         </div>
 
         <div className="form-group">
