@@ -221,7 +221,7 @@ async function handleLogin(body: Record<string, unknown>) {
   const { data: sub, error } = await db
     .from("subscriptions").insert({
       email, plan_id: plan.id, analyses_used: 0,
-      analyses_limit: 5, status: "pending",
+      analyses_limit: 6, status: "pending",
       password_hash: passwordHash,
     }).select(SAFE_SUB_FIELDS).single();
 
@@ -254,7 +254,7 @@ async function handleSubscription(body: Record<string, unknown>) {
   const { data: sub, error } = await db
     .from("subscriptions").insert({
       email, plan_id: plan.id, analyses_used: 0,
-      analyses_limit: 5, status: "pending",
+      analyses_limit: 6, status: "pending",
     }).select(SAFE_SUB_FIELDS).single();
 
   if (error) throw error;

@@ -49,9 +49,9 @@ CREATE TABLE subscription_plans (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Insert default plan: 5 analyses per R$ 3.00
+-- Insert default plan: 6 analyses per R$ 12.00
 INSERT INTO subscription_plans (name, analyses_limit, price_cents, currency)
-VALUES ('Plano Basico', 5, 300, 'BRL');
+VALUES ('Plano Basico', 6, 1200, 'BRL');
 
 -- Subscriptions: tracks user's active plan and usage
 CREATE TABLE subscriptions (

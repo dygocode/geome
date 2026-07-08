@@ -1,10 +1,10 @@
 import { supabase } from '../lib/supabase';
 
 export const PLAN_CONFIG = {
-  analysesLimit: 5,
-  priceCents: 300,
+  analysesLimit: 6,
+  priceCents: 1200,
   currency: 'BRL',
-  label: '5 analises por R$ 3,00',
+  label: '6 analises por R$ 12,00',
 };
 
 export interface Subscription {
