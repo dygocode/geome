@@ -14,32 +14,43 @@ const MODELS = [
   "google/gemma-4-26b-a4b-it:free",
   "nvidia/nemotron-3-super-120b-a12b:free",
   "meta-llama/llama-3.3-70b-instruct:free",
+  "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "tencent/hy3:free",
 ];
 
 async function callModel(model: string, messages: any[]): Promise<string> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
 
-  try {
-    const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": FRONTEND_URL,
-        "X-Title": "Geome - Gemini Analysis",
-      },
-      body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 2000 }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    const data = await res.json();
-    if (!res.ok) throw new Error(`${res.status}: ${JSON.stringify(data)}`);
-    return data.choices[0].message.content;
-  } catch (err) {
-    clearTimeout(timeout);
-    throw err;
+      const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": FRONTEND_URL,
+          "X-Title": "Geome - Gemini Analysis",
+        },
+        body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 2000 }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      const data = await res.json();
+      if (res.ok) return data.choices[0].message.content;
+      if (res.status === 429) {
+        const wait = Math.min(Number(res.headers.get("retry-after")) || 5, 15);
+        await new Promise((r) => setTimeout(r, wait * 1000));
+        continue;
+      }
+      throw new Error(`${res.status}: ${JSON.stringify(data)}`);
+    } catch (err: any) {
+      if (err.name === "AbortError") continue;
+      throw err;
+    }
   }
+  throw new Error(`All retries exhausted for ${model}`);
 }
 
 function parseJson(content: string): any {
