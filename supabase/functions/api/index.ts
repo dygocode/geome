@@ -46,7 +46,7 @@ async function mpFetch(path: string, options: RequestInit = {}): Promise<any> {
 }
 
 // ── OpenRouter API helper ─────────────────────────────────────
-async function openrouterFetch(model: string, messages: any[], retries = 2): Promise<string> {
+async function openrouterFetch(model: string, messages: any[], retries = 3): Promise<string> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
       method: "POST",
@@ -66,8 +66,9 @@ async function openrouterFetch(model: string, messages: any[], retries = 2): Pro
     const data = await res.json();
     if (res.ok) return data.choices[0].message.content;
     if (res.status === 429 && attempt < retries) {
-      const retryAfter = Number(res.headers.get("retry-after")) || 7;
-      await new Promise((r) => setTimeout(r, retryAfter * 1000));
+      const retryAfter = Number(res.headers.get("retry-after")) || 10;
+      const wait = Math.min(retryAfter, 30);
+      await new Promise((r) => setTimeout(r, wait * 1000));
       continue;
     }
     throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(data)}`);
@@ -410,7 +411,12 @@ async function handleAnalysis(body: Record<string, unknown>) {
   const models = [
     "google/gemma-4-31b-it:free",
     "openai/gpt-oss-120b:free",
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "nousresearch/hermes-3-llama-3.1-405b:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
     "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "openai/gpt-oss-20b:free",
   ];
 
   const prompt = buildAnalysisPrompt({
@@ -435,7 +441,7 @@ async function handleAnalysis(body: Record<string, unknown>) {
     } catch (err) {
       lastError = err as Error;
       if (i < models.length - 1) {
-        await new Promise((r) => setTimeout(r, 8000));
+        await new Promise((r) => setTimeout(r, 5000));
       }
       continue;
     }
