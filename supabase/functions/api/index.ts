@@ -46,25 +46,33 @@ async function mpFetch(path: string, options: RequestInit = {}): Promise<any> {
 }
 
 // ── OpenRouter API helper ─────────────────────────────────────
-async function openrouterFetch(model: string, messages: any[]): Promise<string> {
-  const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": FRONTEND_URL,
-      "X-Title": "Geome Brand Analysis",
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.7,
-      max_tokens: 2000,
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(data)}`);
-  return data.choices[0].message.content;
+async function openrouterFetch(model: string, messages: any[], retries = 2): Promise<string> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": FRONTEND_URL,
+        "X-Title": "Geome Brand Analysis",
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.7,
+        max_tokens: 2000,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok) return data.choices[0].message.content;
+    if (res.status === 429 && attempt < retries) {
+      const retryAfter = Number(res.headers.get("retry-after")) || 5;
+      await new Promise((r) => setTimeout(r, Math.min(retryAfter, 15) * 1000));
+      continue;
+    }
+    throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(data)}`);
+  }
+  throw new Error(`OpenRouter: retries exhausted for ${model}`);
 }
 
 function parseAnalysisJson(content: string): any {
@@ -413,8 +421,12 @@ async function handleAnalysis(body: Record<string, unknown>) {
     "openai/gpt-oss-120b:free",
     "qwen/qwen3-next-80b-a3b-instruct:free",
     "nousresearch/hermes-3-llama-3.1-405b:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
     "meta-llama/llama-3.3-70b-instruct:free",
     "google/gemma-4-26b-a4b-it:free",
+    "openai/gpt-oss-20b:free",
+    "tencent/hy3:free",
+    "qwen/qwen3-coder:free",
   ];
 
   const prompt = buildAnalysisPrompt({
@@ -426,13 +438,23 @@ async function handleAnalysis(body: Record<string, unknown>) {
 
   const messages = [{ role: "user", content: prompt }];
 
-  // Try all models in parallel, use first successful response
-  const result = await Promise.any(
-    models.map(async (model) => {
+  let result: any = null;
+  let lastError: Error | null = null;
+
+  for (const model of models) {
+    try {
       const content = await openrouterFetch(model, messages);
-      return parseAnalysisJson(content);
-    })
-  );
+      result = parseAnalysisJson(content);
+      break;
+    } catch (err) {
+      lastError = err as Error;
+      continue;
+    }
+  }
+
+  if (!result) {
+    throw new Error(`All models failed. Last: ${lastError?.message}`);
+  }
 
   if (company) {
     const { data: analysis } = await db.from("analyses").insert({
