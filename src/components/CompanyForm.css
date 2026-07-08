@@ -65,6 +65,12 @@
   min-width: 0;
 }
 
+.field-error {
+  color: #E57373;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
 .form-submit {
   background-color: var(--color-ambar);
   color: var(--color-grafite);

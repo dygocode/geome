@@ -28,19 +28,28 @@ const INITIAL_STATE: CompanyFormData = {
   email: '',
 };
 
+function isValidDomain(value: string): boolean {
+  const cleaned = value.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  return /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$/.test(cleaned);
+}
+
 export function CompanyForm({ onSubmit, isLoading }: CompanyFormProps) {
   const [form, setForm] = useState<CompanyFormData>(INITIAL_STATE);
+  const [websiteError, setWebsiteError] = useState('');
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (name === 'website') setWebsiteError('');
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const data = { ...form };
-    if (data.website && !data.website.startsWith('http')) {
-      data.website = 'https://' + data.website;
+    if (!isValidDomain(form.website)) {
+      setWebsiteError('Invalid website format');
+      return;
     }
+    const data = { ...form, website: 'https://' + form.website.replace(/^https?:\/\//, '') };
     onSubmit(data);
   }
 
@@ -72,13 +81,14 @@ export function CompanyForm({ onSubmit, isLoading }: CompanyFormProps) {
             <input
               id="website"
               name="website"
-              type="url"
+              type="text"
               placeholder={t('websitePlaceholder')}
               value={form.website}
               onChange={handleChange}
               required
             />
           </div>
+          {websiteError && <span className="field-error">{websiteError}</span>}
         </div>
 
         <div className="form-group">
