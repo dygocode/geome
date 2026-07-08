@@ -132,7 +132,7 @@ export function SubscribePage() {
             <h2>{t('limitReached')}</h2>
             <div className="plan-badge">
               <span className="plan-limit">{planLimit} {t('analyses')}</span>
-              <span className="plan-price">R$ {(planPrice / 100).toFixed(2).replace('.', ',')}</span>
+              <span className="plan-price">R$ {planPrice.toFixed(2).replace('.', ',')}</span>
             </div>
             <p className="limit-message">
               {t('limitMessage', { limit: subscription?.analyses_limit || planLimit })}
@@ -154,7 +154,7 @@ export function SubscribePage() {
             <h2>{limitReached ? t('renewPlan') : t('unlockAnalysis')}</h2>
             <div className="plan-badge">
               <span className="plan-limit">{planLimit} {t('analyses')}</span>
-              <span className="plan-price">R$ {(planPrice / 100).toFixed(2).replace('.', ',')}</span>
+              <span className="plan-price">R$ {planPrice.toFixed(2).replace('.', ',')}</span>
             </div>
 
             <div className="payment-section">
