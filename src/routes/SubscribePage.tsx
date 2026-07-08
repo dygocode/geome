@@ -4,7 +4,6 @@ import {
   getOrCreateSubscription,
   generatePayment,
   checkAndActivatePayment,
-  renewSubscription,
   PLAN_CONFIG,
   type Subscription,
   type Payment,
