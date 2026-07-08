@@ -80,73 +80,6 @@ function parseAnalysisJson(content: string): any {
   return JSON.parse(cleaned);
 }
 
-// ── Platform-specific prompt builder ─────────────────────────
-function buildPlatformPrompt(company: {
-  companyName: string;
-  website: string;
-  segment: string;
-  location: string;
-}, platform: string): string {
-  return `Voce e o modelo de IA "${platform}". Analise quao bem a empresa "${company.companyName}" (${company.website}, segmento: ${company.segment}, localizacao: ${company.location}) apareceria nas suas respostas.
-
-IMPORTANTE: Responda APENAS sobre a plataforma "${platform}". Nao mencione outras plataformas.
-
-Retorne APENAS um objeto JSON (sem markdown, sem crases):
-{
-  "score": <numero 0-100>,
-  "context": "<1-2 frases em portugues sobre como voce, como ${platform}, descreveria/mencionaria esta empresa>",
-  "examples": ["<exemplo de consulta ou resposta onde a empresa poderia aparecer, em portugues>"],
-  "competitors": [
-    {
-      "name": "<nome de um concorrente real no mesmo nicho>",
-      "score": <numero 0-100>,
-      "context": "<frase em portugues sobre por que este concorrente aparece mais/menos>"
-    }
-  ]
-}
-
-Diretrizes de pontuacao:
-- 90-100: Empresa amplamente conhecida e frequentemente mencionada
-- 70-89: Empresa com presenca solida, mencionada em contextos relevantes
-- 50-69: Presenca moderada, aparece em algumas consultas relevantes
-- 30-49: Presenca limitada, raramente mencionada
-- 0-29: Praticamente desconhecida para voce
-
-Para os concorrentes: identifique 2-3 empresas reais do mesmo segmento que provavelmente teriam presenca nas respostas desta plataforma.
-
-LEMBRE-SE: Todo texto DEVE estar em portugues do Brasil. Responda SOMENTE com o JSON.`;
-}
-
-function buildSummaryPrompt(company: {
-  companyName: string;
-  segment: string;
-}, platformResults: { platform: string; score: number; context: string }[]): string {
-  const resultsText = platformResults.map(p => `- ${p.platform} (score: ${p.score}): ${p.context}`).join('\n');
-  return `Com base nas analises das plataformas de IA para a empresa "${company.companyName}" (segmento: ${company.segment}), gere um resumo e recomendacoes.
-
-Dados das plataformas:
-${resultsText}
-
-Retorne APENAS um objeto JSON (sem markdown, sem crases):
-{
-  "summary": "<resumo de 2-3 frases em portugues sobre a presenca da marca nas plataformas de IA>",
-  "recommendations": [
-    "<recomendacao acionavel 1 em portugues>",
-    "<recomendacao acionavel 2 em portugues>",
-    "<recomendacao acionavel 3 em portugues>"
-  ]
-}
-
-LEMBRE-SE: Todo texto DEVE estar em portugues do Brasil. Responda SOMENTE com o JSON.`;
-}
-
-// ── Platform config: which model answers for each platform ───
-const PLATFORM_MODELS: { platform: string; model: string; fallback: string }[] = [
-  { platform: "ChatGPT", model: "openai/gpt-oss-120b:free", fallback: "openai/gpt-oss-20b:free" },
-  { platform: "Gemini", model: "google/gemma-4-31b-it:free", fallback: "google/gemma-4-26b-a4b-it:free" },
-  { platform: "Claude", model: "qwen/qwen3-next-80b-a3b-instruct:free", fallback: "nousresearch/hermes-3-llama-3.1-405b:free" },
-];
-
 // ── Route: Create checkout (PIX via Mercado Pago) ─────────────
 async function handlePixCreate(body: Record<string, unknown>) {
   const { subscription_id, email } = body;
@@ -438,37 +371,49 @@ async function handleAnalysis(body: Record<string, unknown>) {
     location: String(location),
   };
 
-  // Query each platform by its actual provider model
+  const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
+  const fnBase = `${SUPABASE_URL}/functions/v1`;
+
+  async function invokeFn(name: string, body: any): Promise<any> {
+    const res = await fetch(`${fnBase}/${name}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`${name} failed: ${res.status}`);
+    return res.json();
+  }
+
+  // Fire all 3 platform analyses + summary in parallel
+  const [chatgptResult, geminiResult, claudeResult] = await Promise.allSettled([
+    invokeFn("analysis-chatgpt", companyData),
+    invokeFn("analysis-gemini", companyData),
+    invokeFn("analysis-claude", companyData),
+  ]);
+
   const brandMentions: any[] = [];
   const allCompetitors: any[] = [];
 
-  for (const { platform, model, fallback } of PLATFORM_MODELS) {
-    const prompt = buildPlatformPrompt(companyData, platform);
-    const messages = [{ role: "user", content: prompt }];
-
-    let mention = null;
-    for (const m of [model, fallback]) {
-      try {
-        const content = await openrouterFetch(m, messages);
-        const parsed = parseAnalysisJson(content);
-        mention = { platform, score: parsed.score, context: parsed.context, examples: parsed.examples };
-        if (parsed.competitors && Array.isArray(parsed.competitors)) {
-          parsed.competitors.forEach((c: any) => allCompetitors.push(c));
-        }
-        break;
-      } catch {
-        continue;
+  function handlePlatformResult(platform: string, result: PromiseSettledResult<any>) {
+    if (result.status === "fulfilled" && result.value && !result.value.error) {
+      const r = result.value;
+      brandMentions.push({ platform, score: r.score, context: r.context, examples: r.examples });
+      if (r.competitors && Array.isArray(r.competitors)) {
+        r.competitors.forEach((c: any) => allCompetitors.push(c));
       }
-    }
-
-    if (mention) {
-      brandMentions.push(mention);
     } else {
       brandMentions.push({ platform, score: 0, context: "Nao foi possivel analisar esta plataforma.", examples: [] });
     }
   }
 
-  // Merge competitors: deduplicate by name, average scores
+  handlePlatformResult("ChatGPT", chatgptResult);
+  handlePlatformResult("Gemini", geminiResult);
+  handlePlatformResult("Claude", claudeResult);
+
+  // Merge competitors
   const compMap = new Map<string, { name: string; scores: number[]; contexts: string[] }>();
   for (const c of allCompetitors) {
     const key = c.name?.toLowerCase().trim();
@@ -490,30 +435,19 @@ async function handleAnalysis(body: Record<string, unknown>) {
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
 
-  // Get overall summary and recommendations from a neutral model
+  // Get summary from separate function
   let summary = "";
   let recommendations: string[] = [];
 
-  const summaryPrompt = buildSummaryPrompt(companyData, brandMentions);
-  const summaryModels = [
-    "nvidia/nemotron-3-super-120b-a12b:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "tencent/hy3:free",
-  ];
-
-  for (const m of summaryModels) {
-    try {
-      const content = await openrouterFetch(m, [{ role: "user", content: summaryPrompt }]);
-      const parsed = parseAnalysisJson(content);
-      summary = parsed.summary;
-      recommendations = parsed.recommendations;
-      break;
-    } catch {
-      continue;
-    }
-  }
-
-  if (!summary) {
+  try {
+    const summaryResult = await invokeFn("analysis-summary", {
+      companyName: companyData.companyName,
+      segment: companyData.segment,
+      platformResults: brandMentions.map((m) => ({ platform: m.platform, score: m.score, context: m.context })),
+    });
+    summary = summaryResult.summary;
+    recommendations = summaryResult.recommendations;
+  } catch {
     summary = `Analise de presenca da marca ${companyName} nas principais plataformas de IA.`;
     recommendations = [
       "Aumente a publicacao de conteudo tecnico no site",
