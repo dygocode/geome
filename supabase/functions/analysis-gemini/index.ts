@@ -9,22 +9,34 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MODELS = ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"];
+const MODELS = [
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+];
 
 async function callModel(model: string, messages: any[]): Promise<string> {
-  const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": FRONTEND_URL,
-      "X-Title": "Geome - Gemini Analysis",
-    },
-    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 2000 }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(data)}`);
-  return data.choices[0].message.content;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": FRONTEND_URL,
+        "X-Title": "Geome - Gemini Analysis",
+      },
+      body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 2000 }),
+    });
+    const data = await res.json();
+    if (res.ok) return data.choices[0].message.content;
+    if (res.status === 429 && attempt < 1) {
+      const wait = Number(res.headers.get("retry-after")) || 5;
+      await new Promise((r) => setTimeout(r, Math.min(wait, 10) * 1000));
+      continue;
+    }
+    throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(data)}`);
+  }
+  throw new Error(`OpenRouter: retries exhausted for ${model}`);
 }
 
 function parseJson(content: string): any {
