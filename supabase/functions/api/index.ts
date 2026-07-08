@@ -7,6 +7,8 @@ const MP_ACCESS_TOKEN = Deno.env.get("MP_ACCESS_TOKEN")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const FRONTEND_URL = Deno.env.get("FRONTEND_URL") || "https://geome-app.vercel.app";
+const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
+const OPENROUTER_API = "https://openrouter.ai/api/v1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,6 +43,76 @@ async function mpFetch(path: string, options: RequestInit = {}): Promise<any> {
   const data = await res.json();
   if (!res.ok) throw new Error(`MP ${res.status}: ${JSON.stringify(data)}`);
   return data;
+}
+
+// ── OpenRouter API helper ─────────────────────────────────────
+async function openrouterFetch(model: string, messages: any[]): Promise<string> {
+  const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": FRONTEND_URL,
+      "X-Title": "Geome Brand Analysis",
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.7,
+      max_tokens: 2000,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(data)}`);
+  return data.choices[0].message.content;
+}
+
+// ── Analysis prompt builder ───────────────────────────────────
+function buildAnalysisPrompt(company: {
+  companyName: string;
+  website: string;
+  segment: string;
+  location: string;
+}): string {
+  return `You are a brand presence analyst. Evaluate how well the company "${company.companyName}" (${company.website}, segment: ${company.segment}, location: ${company.location}) would appear in responses from ChatGPT, Claude, and Gemini.
+
+Return ONLY a JSON object with this exact structure (no markdown, no code fences):
+{
+  "overallScore": <number 0-100>,
+  "brandMentions": [
+    {
+      "platform": "ChatGPT",
+      "score": <number 0-100>,
+      "context": "<1-2 sentences about how this platform would describe/mention the company>",
+      "examples": ["<example query or response where the company might appear>"]
+    },
+    {
+      "platform": "Claude",
+      "score": <number 0-100>,
+      "context": "...",
+      "examples": ["..."]
+    },
+    {
+      "platform": "Gemini",
+      "score": <number 0-100>,
+      "context": "...",
+      "examples": ["..."]
+    }
+  ],
+  "summary": "<2-3 sentence overall summary of brand presence across AI platforms>",
+  "recommendations": [
+    "<actionable recommendation 1>",
+    "<actionable recommendation 2>",
+    "<actionable recommendation 3>"
+  ]
+}
+
+Score guidelines:
+- 90-100: Company is widely known and frequently mentioned
+- 70-89: Company has solid presence, mentioned in relevant contexts
+- 50-69: Moderate presence, appears in some relevant queries
+- 30-49: Limited presence, rarely mentioned
+- 0-29: Virtually unknown to AI models`;
 }
 
 // ── Route: Create checkout (PIX via Mercado Pago) ─────────────
@@ -327,29 +399,39 @@ async function handleAnalysis(body: Record<string, unknown>) {
     contact_name: contactName || "", email: email || "",
   }).select().single();
 
-  const result = {
-    overallScore: Math.floor(Math.random() * 40) + 50,
-    brandMentions: [
-      { platform: "ChatGPT", score: Math.floor(Math.random() * 30) + 60,
-        context: `Sua empresa e mencionada no contexto de ${segment || "tecnologia"}.`,
-        examples: [`Mencionada em consultas sobre ${segment || "empresas de TI"}`] },
-      { platform: "Claude", score: Math.floor(Math.random() * 30) + 50,
-        context: "Presenca media com foco em conteudo tecnico.",
-        examples: ["Citada em discussoes sobre arquitetura de software"] },
-      { platform: "Gemini", score: Math.floor(Math.random() * 30) + 55,
-        context: "Boa visibilidade em respostas sobre empresas brasileiras.",
-        examples: ["Presente em listas de fornecedores"] },
-      { platform: "Perplexity", score: Math.floor(Math.random() * 30) + 45,
-        context: "Presenca moderada em pesquisas sobre o setor.",
-        examples: ["Aparece em fontes citadas"] },
-    ],
-    summary: `Analise de presenca da marca ${companyName || "sua empresa"} nas principais plataformas de IA.`,
-    recommendations: [
-      "Aumente a publicacao de conteudo tecnico no site",
-      "Participe de discussoes sobre inovacao no setor",
-      "Garanta informacoes atualizadas em fontes publicas",
-    ],
-  };
+  const models = [
+    "google/gemini-2.0-flash-exp:free",
+    "openai/gpt-4o-mini:free",
+    "anthropic/claude-3-haiku:free",
+  ];
+
+  const prompt = buildAnalysisPrompt({
+    companyName: String(companyName),
+    website: String(website),
+    segment: String(segment),
+    location: String(location),
+  });
+
+  let result: any = null;
+  let lastError: Error | null = null;
+
+  for (const model of models) {
+    try {
+      const content = await openrouterFetch(model, [
+        { role: "user", content: prompt },
+      ]);
+      const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      result = JSON.parse(cleaned);
+      break;
+    } catch (err) {
+      lastError = err as Error;
+      continue;
+    }
+  }
+
+  if (!result) {
+    throw new Error(`All models failed. Last error: ${lastError?.message}`);
+  }
 
   if (company) {
     const { data: analysis } = await db.from("analyses").insert({
@@ -359,7 +441,7 @@ async function handleAnalysis(body: Record<string, unknown>) {
 
     if (analysis) {
       await db.from("platform_mentions").insert(
-        result.brandMentions.map((m) => ({ analysis_id: analysis.id, ...m }))
+        result.brandMentions.map((m: any) => ({ analysis_id: analysis.id, ...m }))
       );
     }
   }
