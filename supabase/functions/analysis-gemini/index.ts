@@ -12,11 +12,15 @@ const corsHeaders = {
 const MODELS = [
   "google/gemma-4-31b-it:free",
   "google/gemma-4-26b-a4b-it:free",
-  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
 ];
 
 async function callModel(model: string, messages: any[]): Promise<string> {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  try {
     const res = await fetch(`${OPENROUTER_API}/chat/completions`, {
       method: "POST",
       headers: {
@@ -26,17 +30,16 @@ async function callModel(model: string, messages: any[]): Promise<string> {
         "X-Title": "Geome - Gemini Analysis",
       },
       body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 2000 }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     const data = await res.json();
-    if (res.ok) return data.choices[0].message.content;
-    if (res.status === 429 && attempt < 1) {
-      const wait = Number(res.headers.get("retry-after")) || 5;
-      await new Promise((r) => setTimeout(r, Math.min(wait, 10) * 1000));
-      continue;
-    }
-    throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(data)}`);
+    if (!res.ok) throw new Error(`${res.status}: ${JSON.stringify(data)}`);
+    return data.choices[0].message.content;
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
   }
-  throw new Error(`OpenRouter: retries exhausted for ${model}`);
 }
 
 function parseJson(content: string): any {
