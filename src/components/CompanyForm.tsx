@@ -37,7 +37,11 @@ export function CompanyForm({ onSubmit, isLoading }: CompanyFormProps) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onSubmit(form);
+    const data = { ...form };
+    if (data.website && !data.website.startsWith('http')) {
+      data.website = 'https://' + data.website;
+    }
+    onSubmit(data);
   }
 
   return (
