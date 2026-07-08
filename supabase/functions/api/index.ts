@@ -79,31 +79,31 @@ function buildAnalysisPrompt(company: {
   segment: string;
   location: string;
 }): string {
-  return `You are a brand presence analyst. Evaluate how well the company "${company.companyName}" (${company.website}, segment: ${company.segment}, location: ${company.location}) would appear in responses from ChatGPT, Claude, and Gemini.
+  return `Voce e um analista de presenca de marca. Avalie quao bem a empresa "${company.companyName}" (${company.website}, segmento: ${company.segment}, localizacao: ${company.location}) apareceria em respostas do ChatGPT, Claude e Gemini.
 
-IMPORTANT: All text fields (context, examples, summary, recommendations) MUST be written in Brazilian Portuguese (pt-BR).
+IMPORTANTE: TODO o texto (contexto, exemplos, resumo, recomendacoes) DEVE ser escrito em portugues do Brasil. Nao use ingles em nenhum campo de texto.
 
-Return ONLY a JSON object with this exact structure (no markdown, no code fences):
+Retorne APENAS um objeto JSON com esta estrutura exata (sem markdown, sem crases):
 {
-  "overallScore": <number 0-100>,
+  "overallScore": <numero 0-100>,
   "brandMentions": [
     {
       "platform": "ChatGPT",
-      "score": <number 0-100>,
+      "score": <numero 0-100>,
       "context": "<1-2 frases em portugues sobre como esta plataforma descreveria/mencionaria a empresa>",
-      "examples": ["<exemplo de consulta ou resposta onde a empresa poderia aparecer>"]
+      "examples": ["<exemplo de consulta ou resposta onde a empresa poderia aparecer, em portugues>"]
     },
     {
       "platform": "Claude",
-      "score": <number 0-100>,
-      "context": "...",
-      "examples": ["..."]
+      "score": <numero 0-100>,
+      "context": "<em portugues>",
+      "examples": ["<em portugues>"]
     },
     {
       "platform": "Gemini",
-      "score": <number 0-100>,
-      "context": "...",
-      "examples": ["..."]
+      "score": <numero 0-100>,
+      "context": "<em portugues>",
+      "examples": ["<em portugues>"]
     }
   ],
   "summary": "<resumo de 2-3 frases em portugues sobre a presenca da marca nas plataformas de IA>",
@@ -114,12 +114,14 @@ Return ONLY a JSON object with this exact structure (no markdown, no code fences
   ]
 }
 
-Score guidelines:
+Diretrizes de pontuacao:
 - 90-100: Empresa amplamente conhecida e frequentemente mencionada
 - 70-89: Empresa com presenca solida, mencionada em contextos relevantes
 - 50-69: Presenca moderada, aparece em algumas consultas relevantes
 - 30-49: Presenca limitada, raramente mencionada
-- 0-29: Praticamente desconhecida para modelos de IA`;
+- 0-29: Praticamente desconhecida para modelos de IA
+
+LEMBRE-SE: Todos os campos de texto DEVEM estar em portugues do Brasil. Responda SOMENTE com o JSON, sem nenhum texto adicional.`;
 }
 
 // ── Route: Create checkout (PIX via Mercado Pago) ─────────────

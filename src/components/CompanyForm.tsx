@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { CompanyFormData, SegmentOption } from '../types';
+import { t } from '../i18n';
 import './CompanyForm.css';
 
 interface CompanyFormProps {
@@ -42,18 +43,18 @@ export function CompanyForm({ onSubmit, isLoading }: CompanyFormProps) {
   return (
     <form className="company-form" onSubmit={handleSubmit}>
       <div className="form-header">
-        <h2>Analise sua presenca nas IAs</h2>
-        <p>Preencha os dados da sua empresa para descobrir como sua marca aparece nas plataformas de inteligencia artificial.</p>
+        <h2>{t('formTitle')}</h2>
+        <p>{t('formDescription')}</p>
       </div>
 
       <div className="form-grid">
         <div className="form-group">
-          <label htmlFor="companyName">Nome da empresa</label>
+          <label htmlFor="companyName">{t('companyName')}</label>
           <input
             id="companyName"
             name="companyName"
             type="text"
-            placeholder="Qual o nome da sua empresa?"
+            placeholder={t('companyNamePlaceholder')}
             value={form.companyName}
             onChange={handleChange}
             required
@@ -61,12 +62,12 @@ export function CompanyForm({ onSubmit, isLoading }: CompanyFormProps) {
         </div>
 
         <div className="form-group">
-          <label htmlFor="website">Site</label>
+          <label htmlFor="website">{t('website')}</label>
           <input
             id="website"
             name="website"
             type="url"
-            placeholder="www.exemplo.com"
+            placeholder={t('websitePlaceholder')}
             value={form.website}
             onChange={handleChange}
             required
@@ -74,7 +75,7 @@ export function CompanyForm({ onSubmit, isLoading }: CompanyFormProps) {
         </div>
 
         <div className="form-group">
-          <label htmlFor="segment">Segmento</label>
+          <label htmlFor="segment">{t('segment')}</label>
           <select
             id="segment"
             name="segment"
@@ -83,7 +84,7 @@ export function CompanyForm({ onSubmit, isLoading }: CompanyFormProps) {
             required
           >
             <option value="" disabled>
-              Selecione um segmento
+              {t('segmentPlaceholder')}
             </option>
             {SEGMENTS.map((seg) => (
               <option key={seg} value={seg}>
@@ -94,12 +95,12 @@ export function CompanyForm({ onSubmit, isLoading }: CompanyFormProps) {
         </div>
 
         <div className="form-group">
-          <label htmlFor="location">Localizacao da empresa</label>
+          <label htmlFor="location">{t('location')}</label>
           <input
             id="location"
             name="location"
             type="text"
-            placeholder="Estado, cidade ou pais"
+            placeholder={t('locationPlaceholder')}
             value={form.location}
             onChange={handleChange}
             required
@@ -107,12 +108,12 @@ export function CompanyForm({ onSubmit, isLoading }: CompanyFormProps) {
         </div>
 
         <div className="form-group">
-          <label htmlFor="contactName">Seu Nome</label>
+          <label htmlFor="contactName">{t('contactName')}</label>
           <input
             id="contactName"
             name="contactName"
             type="text"
-            placeholder="Qual o seu nome?"
+            placeholder={t('contactNamePlaceholder')}
             value={form.contactName}
             onChange={handleChange}
             required
@@ -120,12 +121,12 @@ export function CompanyForm({ onSubmit, isLoading }: CompanyFormProps) {
         </div>
 
         <div className="form-group">
-          <label htmlFor="email">Email</label>
+          <label htmlFor="email">{t('email')}</label>
           <input
             id="email"
             name="email"
             type="email"
-            placeholder="Qual seu e-mail corporativo?"
+            placeholder={t('emailPlaceholder')}
             value={form.email}
             onChange={handleChange}
             required
@@ -137,10 +138,10 @@ export function CompanyForm({ onSubmit, isLoading }: CompanyFormProps) {
         {isLoading ? (
           <span className="loading-text">
             <span className="spinner" />
-            Analisando...
+            {t('analyzing')}
           </span>
         ) : (
-          'Iniciar Analise'
+          t('startAnalysis')
         )}
       </button>
     </form>
